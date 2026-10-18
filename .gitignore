@@ -1,0 +1,10 @@
+.DS_Store
+.Rhistory
+
+# Optional audio is intentionally absent until licensed assets are added.
+assets/audio/**/*.ogg
+
+# Local editor and generated files.
+.vscode/
+node_modules/
+*.log

@@ -1,0 +1,205 @@
+/* =============================================================================
+   WATERWORKS — MAP STYLES
+   Blue is used only for water, flow and selected water infrastructure.
+   Motion is opt-out: it is disabled for prefers-reduced-motion and for the
+   in-app "Reduce motion" setting (html.reduce-motion).
+   ========================================================================== */
+.mapbox { position: relative; box-shadow: var(--shadow-1); border: 1px solid var(--charcoal-900); background: var(--paper-100); }
+.map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.maplabels { position: absolute; inset: 0; pointer-events: none; }
+
+/* ground */
+.land { fill: var(--paper-100); }
+.grid { opacity: .55; } .grid-line { fill: none; stroke: var(--paper-300); stroke-width: .6; }
+.noise { mix-blend-mode: multiply; opacity: .9; pointer-events: none; }
+.contours ellipse { fill: none; stroke: var(--paper-400); stroke-width: 1; opacity: .55; vector-effect: non-scaling-stroke; }
+.hatch-line { stroke: var(--paper-400); stroke-width: 1.2; }
+.mtn { fill: var(--paper-200); stroke: var(--charcoal-700); stroke-width: 1.4; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.mtn-shade { fill: var(--paper-300); opacity: .8; }
+.tree circle { fill: #d9dcc0; stroke: var(--charcoal-600); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.tree path { stroke: var(--charcoal-600); stroke-width: 1.2; fill: none; vector-effect: non-scaling-stroke; }
+
+/* water bodies */
+.river { fill: none; stroke: var(--water-200); stroke-width: 20; stroke-linecap: round; }
+.river-core { fill: none; stroke: var(--water-400); stroke-width: 2; opacity: .7; }
+.res { fill: var(--water-200); stroke: var(--water-700); stroke-width: 1.6; vector-effect: non-scaling-stroke; }
+.wave { fill: none; stroke: var(--water-400); stroke-width: 1.4; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.pump { fill: var(--charcoal-800); stroke: #000; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.pump-ic { stroke: var(--yellow-500); stroke-width: 2.4; stroke-linecap: round; }
+
+/* pipes */
+.pipe { fill: none; stroke: var(--water-600); stroke-width: 7; stroke-linecap: butt; stroke-linejoin: round; }
+.pipe.raw { stroke: var(--water-800); }
+.pipe-flow { fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; stroke-dasharray: 3 13; opacity: .95; }
+.pipe-flow.flow-river { stroke: var(--water-100); stroke-width: 3; }
+.m-water { fill: var(--water-800); } .m-waste { fill: var(--waste-600); } .m-reuse { fill: var(--reuse-600); } .m-runoff { fill: var(--runoff-600); }
+svg[data-flow="off"] .pipe-flow, svg[data-flow="off"] .flow-river { display: none; }
+.junction { fill: var(--paper-50); stroke: var(--water-800); stroke-width: 2.4; vector-effect: non-scaling-stroke; }
+.hitline { fill: none; stroke: transparent; stroke-width: 26; }
+.sel-line { fill: none; stroke: var(--yellow-500); stroke-width: 14; opacity: 0; stroke-linecap: round; }
+.pipeobj.is-selected .sel-line { opacity: .55; }
+.pipeobj:hover .sel-line { opacity: .3; }
+.pipeobj.is-selected:hover .sel-line { opacity: .55; }
+.pipe-end .x { stroke: var(--risk-600); stroke-width: 3; fill: none; }
+.pipe-end path:first-child { stroke: var(--charcoal-900); stroke-width: 4; }
+
+/* wastewater, runoff, reuse */
+.sewer { fill: none; stroke: var(--waste-600); stroke-width: 4.5; stroke-dasharray: 10 5; opacity: .85; }
+.sewer-flow { fill: none; stroke: var(--paper-50); stroke-width: 1.8; stroke-dasharray: 2 14; }
+.outfall-line { fill: none; stroke: var(--waste-600); stroke-width: 4.5; stroke-dasharray: 10 5; opacity: .85; }
+.outfall circle { fill: var(--paper-50); stroke: var(--waste-600); stroke-width: 3; }
+svg[data-waste="off"] .layer-waste { display: none; }
+.reuse-line { fill: none; stroke: var(--reuse-600); stroke-width: 4.5; stroke-dasharray: 3 5; }
+.reuse-flow { fill: none; stroke: #fff; stroke-width: 1.8; stroke-dasharray: 2 12; }
+.runoff { fill: none; stroke: var(--runoff-600); stroke-width: 4; stroke-dasharray: 2 6; stroke-linecap: round; opacity: .85; }
+.runoff-flow { fill: none; stroke: var(--paper-50); stroke-width: 1.6; stroke-dasharray: 2 12; }
+svg[data-runoff="off"] .layer-runoff { display: none; }
+svg[data-runoff-level="high"] .runoff { stroke-width: 7; opacity: 1; }
+svg[data-runoff-level="high"] .runoff-flow { stroke-width: 2.4; }
+
+/* plant */
+.plant { fill: var(--paper-50); stroke: var(--charcoal-900); stroke-width: 1.6; vector-effect: non-scaling-stroke; }
+.plant.ww { fill: #efe6d4; }
+.stage rect:first-child { fill: var(--water-100); stroke: var(--water-700); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+.stage-level { fill: var(--water-400); opacity: .75; }
+.stage text { font: 700 15px var(--font-mono); fill: var(--water-800); }
+.stage.absent { display: none; }
+.stage-slot { display: inline; }
+.stage-slot:not(.present) rect:first-child { fill: none; stroke: var(--charcoal-500); stroke-dasharray: 4 3; }
+.stage-slot:not(.present) .stage-level { display: none; }
+.stage-slot:not(.present) text { fill: var(--charcoal-500); }
+.stage-slot.absent { display: inline; }
+.loadbar-bg { fill: var(--paper-300); } .loadbar { fill: var(--water-600); transition: width var(--dur-3) var(--ease); }
+svg[data-strain="on"] .loadbar { fill: var(--risk-600); }
+svg[data-strain="on"] #obj-plant .plant { stroke: var(--risk-600); stroke-width: 2.6; }
+.loadtick { stroke: var(--charcoal-900); stroke-width: 2; }
+.clar { fill: var(--paper-50); stroke: var(--waste-600); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+.clar-in { fill: none; stroke: var(--waste-600); stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+
+/* storage tank */
+.tank { fill: var(--paper-50); stroke: var(--charcoal-900); stroke-width: 1.8; vector-effect: non-scaling-stroke; }
+.tank-water { fill: var(--water-400); transform: translateY(calc((1 - var(--fill, .5)) * 70px)); transition: transform var(--dur-3) var(--ease); }
+.tank-ring { fill: none; stroke: var(--charcoal-700); stroke-width: 1; stroke-dasharray: 2 3; vector-effect: non-scaling-stroke; opacity: .6; }
+svg[data-storage="low"] .tank { stroke: var(--risk-600); stroke-dasharray: 6 3; stroke-width: 2.6; }
+svg[data-storage="watch"] .tank { stroke: var(--warn-600); }
+
+/* buildings */
+.bld rect, .bld path, .bld-big { fill: var(--paper-50); stroke: var(--charcoal-800); stroke-width: 1.3; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.bld path { fill: var(--paper-300); }
+.win, .furrow, .cross, .flag { fill: none; stroke: var(--charcoal-700); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+.cross { stroke: var(--risk-600); stroke-width: 3.2; }
+.door { fill: var(--charcoal-700); }
+.awn { fill: var(--yellow-500); stroke: var(--charcoal-800); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.awn.alt { fill: var(--paper-50); }
+.field { fill: #ebe4c6; stroke: var(--charcoal-700); stroke-width: 1.3; vector-effect: non-scaling-stroke; }
+.furrow { stroke: var(--charcoal-500); stroke-dasharray: 8 4; opacity: .7; }
+.terrace-ground { opacity: .5; }
+svg[data-d3] #obj-terraceD3 .bld rect { stroke: var(--risk-600); stroke-dasharray: 3 2; }
+.hit { fill: transparent; } .hit-e { fill: transparent; }
+
+/* ghosts (preview / building / built) */
+[data-ghost] { display: none; }
+[data-ghost][data-mode] { display: inline; }
+.ghost-box { fill: rgba(242, 193, 24, .18); stroke: var(--charcoal-900); stroke-width: 1.6; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; }
+.ghost-line, .ghost-pipe { fill: none; stroke: var(--charcoal-900); stroke-width: 5; stroke-dasharray: 8 5; }
+.ghost-pipe { stroke: var(--yellow-600); }
+.ghost-t { font: 700 13px var(--font-mono); fill: var(--charcoal-900); }
+.ghost-bld rect, .ghost-bld path { fill: var(--yellow-100); stroke-dasharray: 4 3; }
+.wet { fill: rgba(74, 156, 204, .18); stroke: var(--water-700); stroke-width: 1.6; stroke-dasharray: 5 3; vector-effect: non-scaling-stroke; }
+.reed { fill: none; stroke: var(--charcoal-700); stroke-width: 1.5; stroke-linecap: round; }
+.drip-line { fill: none; stroke: var(--water-600); stroke-width: 1.4; stroke-dasharray: 1 6; stroke-linecap: round; }
+.scan { fill: none; stroke: var(--yellow-600); stroke-width: 2; }
+[data-mode="built"] .ghost-box { fill: var(--water-100); stroke-dasharray: none; stroke: var(--water-700); }
+[data-mode="built"] .ghost-line, [data-mode="built"] .ghost-pipe { stroke: var(--water-600); stroke-dasharray: none; }
+[data-mode="built"] .wet { stroke-dasharray: none; fill: rgba(74, 156, 204, .3); }
+[data-mode="built"] .ghost-bld rect, [data-mode="built"] .ghost-bld path { stroke-dasharray: none; fill: var(--paper-50); }
+[data-mode="building"] .ghost-box, [data-mode="building"] .wet { fill: url(#hatch); }
+[data-mode="preview"] .ghost-box { animation: none; }
+svg[data-reuse="off"] [data-ghost="reuse"][data-mode="preview"] .reuse-line { opacity: .8; }
+svg[data-reuse="off"] [data-ghost="reuse"]:not([data-mode="built"]) .reuse-flow { display: none; }
+[data-ghost="detect"]:not([data-mode="preview"]) { display: none; }
+
+/* selection */
+.obj { cursor: pointer; outline: none; }
+.sel { fill: none; stroke: var(--yellow-500); stroke-width: 3; stroke-dasharray: 7 4; opacity: 0; vector-effect: non-scaling-stroke; }
+.obj:hover .sel { opacity: .55; }
+.obj.is-selected .sel { opacity: 1; stroke-width: 3.4; }
+.obj:focus-visible .sel { opacity: 1; stroke: var(--charcoal-900); stroke-dasharray: none; stroke-width: 3; }
+.obj:focus-visible { outline: none; box-shadow: none; }
+#obj-reservoir.is-selected .res, #obj-plant.is-selected .plant, #obj-storage.is-selected .tank { stroke: var(--water-700); stroke-width: 2.6; }
+.obj.is-selected .sel-water { stroke: var(--water-600); }
+
+/* leak */
+.leak-ring { fill: rgba(176, 57, 11, .18); stroke: var(--risk-600); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.leak-core { fill: var(--risk-600); }
+.drip { fill: var(--water-600); }
+svg[data-leak="off"] .leak { display: none; }
+.fixed { display: none; }
+svg[data-leak="off"] .fixed { display: inline; }
+.fixed circle { fill: var(--ok-100); stroke: var(--ok-600); stroke-width: 2; }
+.fixed path { fill: none; stroke: var(--ok-600); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; transform: translate(-1px, -1px) scale(.8); transform-origin: 1125px 318px; }
+
+/* storm */
+svg .storm { display: none; }
+svg[data-storm="on"] .storm { display: inline; }
+.cloud { fill: var(--charcoal-600); stroke: var(--charcoal-900); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+.rain { stroke: var(--water-600); stroke-width: 2.4; stroke-linecap: round; fill: none; }
+
+/* HTML label layer ---------------------------------------------------------- */
+.maptag { position: absolute; display: flex; flex-direction: column; gap: 0; padding: 2px 6px 3px; background: rgba(252, 250, 244, .94); border: 1px solid var(--charcoal-900); font-size: 11.5px; line-height: 1.2; white-space: nowrap; pointer-events: auto; cursor: pointer; box-shadow: 1px 1px 0 rgba(16, 18, 20, .25); }
+.maptag.passive { cursor: default; background: rgba(252, 250, 244, .8); border-color: var(--charcoal-500); }
+.maptag .t { display: flex; align-items: center; gap: 4px; font-weight: 700; }
+.maptag .s { font: 500 10.5px var(--font-mono); color: var(--ink-soft); }
+.maptag .ic { width: 12px; height: 12px; }
+.maptag .pct { font: 700 11px var(--font-mono); margin-left: 3px; color: var(--ink-soft); }
+.maptag.tone-risk .pct, .maptag.tone-warn .pct { color: inherit; }
+.maptag.tone-ok .ic { color: var(--ok-600); }
+.maptag.tone-warn .ic { color: var(--warn-600); } .maptag.tone-warn .s { color: var(--warn-600); font-weight: 700; }
+.maptag.tone-risk { border-color: var(--risk-600); border-left-width: 4px; } .maptag.tone-risk .ic, .maptag.tone-risk .s { color: var(--risk-600); font-weight: 700; }
+.maptag.tone-water { border-left: 4px solid var(--water-600); } .maptag.tone-water .s { color: var(--water-700); }
+.maptag.is-selected { background: var(--yellow-500); border-color: #000; }
+.maptag.is-selected .s { color: #000; }
+.maptag:hover { background: var(--yellow-100); }
+.maptag.lbl-runoff { border-color: var(--runoff-600); }
+.badge-n { position: absolute; transform: translate(-50%, -50%); width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; background: var(--charcoal-900); color: #fff; font: 700 11px var(--font-mono); border: 2px solid var(--yellow-500); pointer-events: none; }
+.sample { position: absolute; transform: translate(-50%, -50%); width: 22px; height: 22px; display: grid; place-items: center; background: var(--paper-50); border: 2px solid var(--charcoal-900); color: var(--charcoal-900); font: 800 11px var(--font-mono); pointer-events: auto; padding: 0; transform-origin: center; }
+.sample.on, .sample:hover { background: var(--yellow-500); }
+svg[data-labels="off"] ~ .maplabels .maptag { display: none; }
+
+/* ---------- Motion (opt-out) ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  html:not(.reduce-motion) .pipe-flow { animation: flow var(--flow-dur, 1.6s) linear infinite; }
+  html:not(.reduce-motion) .sewer-flow { animation: flow calc(var(--flow-dur, 1.6s) * 1.4) linear infinite; }
+  html:not(.reduce-motion) .reuse-flow { animation: flow calc(var(--flow-dur, 1.6s) * 1.2) linear infinite; }
+  html:not(.reduce-motion) .runoff-flow { animation: flow 1.4s linear infinite; }
+  html:not(.reduce-motion) .leak-ring { animation: pulse 1.6s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+  html:not(.reduce-motion) .drip { animation: drip 1.1s ease-in infinite; }
+  html:not(.reduce-motion) .drip.d2 { animation-delay: .5s; }
+  html:not(.reduce-motion) .rain { animation: rain 0.9s linear infinite; }
+  html:not(.reduce-motion) .rain.d1 { animation-delay: .2s; } html:not(.reduce-motion) .rain.d2 { animation-delay: .45s; } html:not(.reduce-motion) .rain.d3 { animation-delay: .7s; }
+  html:not(.reduce-motion) .scan { animation: scan 2.2s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+  html:not(.reduce-motion) .scan.s2 { animation-delay: 1.1s; }
+  html:not(.reduce-motion) .wave { animation: bob 3.2s ease-in-out infinite alternate; }
+  html:not(.reduce-motion) .drip-line { animation: flow 2s linear infinite; }
+}
+@keyframes flow { to { stroke-dashoffset: -32; } }
+@keyframes pulse { 0% { transform: scale(.7); opacity: 1; } 100% { transform: scale(1.9); opacity: 0; } }
+@keyframes drip { 0% { transform: translateY(-4px); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(12px); opacity: 0; } }
+@keyframes rain { 0% { transform: translateY(-6px); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(18px); opacity: 0; } }
+@keyframes scan { 0% { transform: scale(.4); opacity: .9; } 100% { transform: scale(2.6); opacity: 0; } }
+@keyframes bob { from { transform: translateX(-3px); } to { transform: translateX(3px); } }
+/* Under reduced motion the pipes keep a static dashed pattern plus arrowheads, so direction is still readable. */
+html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+}
+
+/* trace runoff highlight */
+svg[data-trace="on"] .runoff { stroke: var(--risk-600); stroke-width: 10; opacity: 1; }
+svg[data-trace="on"] .layer-runoff { display: inline; }
+
+/* compact labels when the map is drawn small */
+.mapbox[data-size="m"] .maptag { font-size: 11px; padding: 1px 5px 2px; }
+.mapbox[data-size="m"] .maptag:not(.tone-risk):not(.tone-warn) .s { display: none; }
+.mapbox[data-size="m"] .maptag .s { font-size: 10px; }
+.mapbox[data-size="m"] .badge-n { width: 18px; height: 18px; font-size: 10px; }

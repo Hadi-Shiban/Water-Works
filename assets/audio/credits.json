@@ -1,0 +1,6 @@
+{
+  "music": [],
+  "nature": [],
+  "ui": [],
+  "note": "No bundled audio files are included in this static prototype; the app keeps settings and cue names graceful when media is absent."
+}

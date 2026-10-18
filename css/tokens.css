@@ -1,0 +1,83 @@
+/* =============================================================================
+   WATERWORKS — DESIGN TOKENS
+   Core palette: charcoal, warm white, restrained yellow.
+   Water blue is reserved for water, flow, selected water infrastructure and
+   quality readings. Rust/moss are status colours and are ALWAYS paired with an
+   icon or a word (never colour alone).
+   Original palette; inspired by black/white/yellow field-story clarity, not a
+   copy of any organisation's brand.
+   ========================================================================== */
+:root {
+  /* Charcoal */
+  --charcoal-950: #101214;
+  --charcoal-900: #17191c;
+  --charcoal-800: #202427;
+  --charcoal-700: #2d3236;
+  --charcoal-600: #41474c;
+  --charcoal-500: #5a6167;
+  /* Warm white / paper */
+  --paper-50:  #fcfaf4;
+  --paper-100: #f6f1e6;
+  --paper-200: #ede5d3;
+  --paper-300: #ded3ba;
+  --paper-400: #c6b998;
+  /* Restrained yellow */
+  --yellow-500: #f2c118;
+  --yellow-600: #d6a600;
+  --yellow-100: #fbecab;
+  --yellow-ink: #6a4f00;
+  /* Water blue (water only) */
+  --water-800: #0c3d61;
+  --water-700: #10507d;
+  --water-600: #1a6aa0;
+  --water-400: #4a9ccc;
+  --water-200: #b4d7ec;
+  --water-100: #dcecf5;
+  /* Non-potable / wastewater / runoff / reclaimed */
+  --waste-600: #7a6247;
+  --runoff-600: #8f5b1f;
+  --reuse-600: #6b4c86;
+  /* Status (paired with icon/text) */
+  --risk-600: #b0390b;
+  --risk-100: #f6dccd;
+  --warn-600: #8f5f00;
+  --warn-100: #fbecc8;
+  --ok-600: #2b7346;
+  --ok-100: #d9ecdd;
+  /* Ink */
+  --ink: #1b1f23;
+  --ink-soft: #464d54;
+  --ink-faint: #666d74;
+  --ink-on-dark: #f4efe3;
+  --ink-on-dark-soft: #b9b4a6;
+  /* Risk band ramp (0 low .. 4 severe) — text label always shown with it */
+  --band-0: #2b7346; --band-1: #56621f; --band-2: #9a6a00; --band-3: #b0390b; --band-4: #7d1d05;
+
+  /* Type */
+  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --fs-2xs: 11px; --fs-xs: 12px; --fs-sm: 13px; --fs-md: 14px; --fs-lg: 17px; --fs-xl: 22px; --fs-2xl: 32px; --fs-3xl: 42px;
+
+  /* Space */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
+
+  /* Borders & shadow */
+  --bd: 1px solid var(--paper-400);
+  --bd-dark: 1px solid #000;
+  --radius: 2px;
+  --radius-lg: 4px;
+  --shadow-1: 0 1px 0 rgba(16, 18, 20, .08), 0 2px 6px rgba(16, 18, 20, .12);
+  --shadow-2: 0 2px 0 rgba(16, 18, 20, .10), 0 10px 28px rgba(16, 18, 20, .28);
+
+  /* Motion */
+  --dur-1: 120ms; --dur-2: 240ms; --dur-3: 700ms;
+  --ease: cubic-bezier(.2, .7, .2, 1);
+
+  /* Layout */
+  --topbar-h: 56px;
+  --rail-open: 264px;
+  --rail-closed: 56px;
+  --inspector-w: 340px;
+  --dash-h: 204px;
+}
