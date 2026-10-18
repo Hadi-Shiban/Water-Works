@@ -2,189 +2,99 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Waterworks — Interactive Wireframe</title>
-  <meta name="description" content="Interactive wireframe for Waterworks, a small-city water-system builder. Prototype with mock data.">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Waterworks</title>
+  <meta name="description" content="Waterworks: an illustrated village water-project game. An independent educational prototype inspired by charity: water.">
+  <meta name="theme-color" content="#17191c">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 7.5h12v13a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 20.5z' fill='%23f2c118' stroke='%236a4f00'/%3E%3Cpath d='M8 7.5c0-3 3-4.5 5-4.5M13.5 3h3v4.5' fill='none' stroke='%236a4f00' stroke-width='1.6'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="css/tokens.css">
-  <link rel="stylesheet" href="css/app.css">
-  <link rel="stylesheet" href="css/map.css">
+  <link rel="stylesheet" href="css/village.css">
 </head>
 <body>
-<div id="startShell" class="start-shell" aria-live="polite">
-  <div class="start-panel">
-    <div class="start-art" aria-hidden="true"></div>
-    <div class="start-copy">
-      <p class="kicker">Chapter 1 · Alpine Headwaters</p>
-      <h1>Waterworks</h1>
-      <p class="lead">Follow water from the mountains to the community — and back again.</p>
-      <div class="start-actions">
-        <button type="button" class="btn primary" data-act="start-journey">Start Journey</button>
-        <button type="button" class="btn" data-act="continue-journey" id="continueJourneyBtn">Continue</button>
-        <button type="button" class="btn" data-act="explore-environments">Explore environments</button>
-        <button type="button" class="btn" data-act="open-settings-shell">Settings</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div id="tutorialOverlay" class="tutorial-overlay hidden" aria-live="polite" aria-modal="true" role="dialog">
-  <div class="tutorial-panel">
-    <div class="tutorial-header">
-      <p class="kicker">Guided trail</p>
-      <button type="button" class="icon-btn" data-act="close-tutorial" aria-label="Close tutorial">×</button>
-    </div>
-    <div class="tutorial-body">
-      <h2 id="tutorialTitle">Follow the water</h2>
-      <p id="tutorialMessage">Water must pass through treatment before the community can use it safely. Select the treatment plant to see what changes.</p>
-    </div>
-    <div class="tutorial-actions">
-      <button type="button" class="btn" data-act="tutorial-back">Back</button>
-      <button type="button" class="btn" data-act="tutorial-skip">Skip tutorial</button>
-      <button type="button" class="btn primary" data-act="tutorial-next">Next</button>
-    </div>
-  </div>
-</div>
-
-<a class="skip" href="#stage">Skip to the map</a>
 
 <!-- Icon sprite: original 24px line icons, stroke = currentColor -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
   <defs>
-    <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3s-6.5 7.2-6.5 11.5a6.5 6.5 0 0 0 13 0C18.5 10.2 12 3 12 3z"/></symbol>
-    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M16 16l5 5"/></symbol>
-    <symbol id="i-mountain" viewBox="0 0 24 24"><path d="M2 19l7-12 4 6 2.5-3.5L22 19z"/></symbol>
-    <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 5h16l-6 8v6l-4-2v-4z"/></symbol>
-    <symbol id="i-pipe" viewBox="0 0 24 24"><path d="M3 8h10v8H3zM13 12h8M17 9v6"/></symbol>
-    <symbol id="i-leaf" viewBox="0 0 24 24"><path d="M5 19c0-8 5-13 14-14 0 9-5 14-13 14M5 19l6-6"/></symbol>
-    <symbol id="i-recycle" viewBox="0 0 24 24"><path d="M7 8h9l-2-2M17 16H8l2 2M16 8a5 5 0 0 1 2 4M8 16a5 5 0 0 1-2-4"/></symbol>
-    <symbol id="i-building" viewBox="0 0 24 24"><path d="M4 20V8l8-4 8 4v12zM9 20v-6h6v6"/></symbol>
-    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/></symbol>
-    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></symbol>
-    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5l11 7-11 7z"/></symbol>
-    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
-    <symbol id="i-fast" viewBox="0 0 24 24"><path d="M4 5l8 7-8 7zM12 5l8 7-8 7z"/></symbol>
-    <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3L5 14h6l-1 7 8-11h-6z"/></symbol>
-    <symbol id="i-coin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M14.5 9.5c-.6-.8-1.5-1.2-2.5-1.2-1.4 0-2.4.7-2.4 1.800 0 2.5 5 1.1 5 3.800 0 1.1-1.1 1.800-2.6 1.800-1.1 0-2-.4-2.7-1.2M12 6.5v1.800M12 15.800v1.7"/></symbol>
-    <symbol id="i-flask" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-5 10a1 1 0 0 0 1 2h12a1 1 0 0 0 1-2l-5-10V3M7.5 15h9"/></symbol>
-    <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6M16 5.5a3 3 0 0 1 0 5.5M18 14c2 .7 3 2.800 3 6"/></symbol>
-    <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.300c-.7.4-1 .9-1 1.7M12 17v.1"/></symbol>
-    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.300 16.300l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.300l-2.1 2.1"/></symbol>
-    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5c3-1.5 6-1.5 8 0 2-1.5 5-1.5 8 0v14c-3-1.5-6-1.5-8 0-2-1.5-5-1.5-8 0zM12 5v14"/></symbol>
-    <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4l9 16H3zM12 10v4.5M12 17.2v.1"/></symbol>
-    <symbol id="i-tri" viewBox="0 0 24 24"><path d="M12 5l8 14H4z"/></symbol>
-    <symbol id="i-octo" viewBox="0 0 24 24"><path d="M8.5 3h7L21 8.5v7L15.5 21h-7L3 15.5v-7zM9 9l6 6M15 9l-6 6"/></symbol>
-    <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8 12.5l3 3 5-6"/></symbol>
-    <symbol id="i-dot" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/></symbol>
+    <symbol id="i-can" viewBox="0 0 24 24"><path d="M6 7.5h12v13a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 20.5z" fill="#f2c118" stroke="#6a4f00"/><path d="M9 11l6 7M15 11l-6 7" stroke="#b68900"/><path d="M8 7.5c0-3 3-4.5 5-4.5M13.5 3h3v4.5" stroke="#6a4f00"/></symbol>
+    <symbol id="i-wood" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><circle cx="16" cy="15" r="4"/><circle cx="12" cy="8" r="4"/><circle cx="8" cy="15" r="1.2"/><circle cx="16" cy="15" r="1.2"/><circle cx="12" cy="8" r="1.2"/></symbol>
+    <symbol id="i-stone" viewBox="0 0 24 24"><path d="M3 19c-.5-4 2-7 6-7.5 3.5-.3 5 3 5 7.5zM11 19c0-5 2.5-8.5 6-8.5s4.5 3.5 4 8.5zM6.5 11.5C7 8 9 6 11.5 6.5s3 3 2 5"/></symbol>
+    <symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6M16 5.5a3 3 0 0 1 0 5.5M18 14c2 .7 3 2.8 3 6"/></symbol>
+    <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></symbol>
+    <symbol id="i-mute" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
-    <symbol id="i-chev-d" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
-    <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
-    <symbol id="i-chev-l" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
-    <symbol id="i-rain" viewBox="0 0 24 24"><path d="M7 15a4 4 0 0 1 .5-8 5 5 0 0 1 9.5 1.5A3.5 3.5 0 0 1 16.5 15zM8 18l-1 3M12 18l-1 3M16 18l-1 3"/></symbol>
-    <symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14.5 6.5a4 4 0 0 0 5 5L10 21l-4-4zM14.5 6.5L17 4"/></symbol>
-    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
-    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="1"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8 12.5l3 3 5-6"/></symbol>
+    <symbol id="i-dot" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24"><path d="M6 21V4M6 4.5h11l-2.5 4 2.5 4H6"/></symbol>
     <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s4-6.5 10-6.5S22 12 22 12s-4 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/></symbol>
-    <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11l8-6 8 6v9H4zM10 20v-5h4v5"/></symbol>
-    <symbol id="i-school" viewBox="0 0 24 24"><path d="M3 9l9-5 9 5-9 5zM7 11.5V16c0 1.5 2.2 3 5 3s5-1.5 5-3v-4.5"/></symbol>
-    <symbol id="i-clinic" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M12 8v8M8 12h8"/></symbol>
-    <symbol id="i-market" viewBox="0 0 24 24"><path d="M4 9l1.5-5h13L20 9zM5 9v11h14V9M9 20v-6h6v6"/></symbol>
-    <symbol id="i-farm" viewBox="0 0 24 24"><path d="M3 18h18M5 18c0-5 2-9 7-11 5 2 7 6 7 11M12 7v11"/></symbol>
-    <symbol id="i-industry" viewBox="0 0 24 24"><path d="M3 20V10l6 4v-4l6 4V6h3v14zM8 20v-3M13 20v-3"/></symbol>
-    <symbol id="i-tank" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="2.5"/><path d="M5 6v11c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5"/></symbol>
-    <symbol id="i-plant" viewBox="0 0 24 24"><path d="M3 20V9h5v11M10 20V5h5v15M17 20v-8h4v8M2 20h20"/></symbol>
-    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/></symbol>
-    <symbol id="i-flow" viewBox="0 0 24 24"><path d="M3 8c3 0 3 3 6 3s3-3 6-3 3 3 6 3M3 15c3 0 3 3 6 3s3-3 6-3 3 3 6 3"/></symbol>
-    <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.1M3.5 12h.1M3.5 18h.1"/></symbol>
-    <symbol id="i-map" viewBox="0 0 24 24"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2zM9 4v14M15 6v14"/></symbol>
+    <symbol id="i-flask" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-5 10a1 1 0 0 0 1 2h12a1 1 0 0 0 1-2l-5-10V3M7.5 15h9"/></symbol>
+    <symbol id="i-walk" viewBox="0 0 24 24"><circle cx="12" cy="4.5" r="2"/><path d="M10 21l2-6-2.5-2.5L11 8l3 3 3 1M9.5 12.5L7 15M14 15l2 6"/></symbol>
+    <symbol id="i-hammer" viewBox="0 0 24 24"><path d="M14 5l5 5-2 2-5-5zM12.5 8.5L4 17l3 3 8.5-8.5"/></symbol>
+    <symbol id="i-chev-right" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+    <symbol id="i-chev-up" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
+    <symbol id="i-chev-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
   </defs>
 </svg>
 
-<div class="app" id="app" data-rail="open" data-dash="open">
+<!-- START SCREEN -->
+<section id="start" class="start" aria-labelledby="startTitle">
+  <div class="start-art" aria-hidden="true"></div>
+  <div class="start-panel">
+    <p class="kicker"><svg class="ic" aria-hidden="true"><use href="#i-can"/></svg> A village water-project game</p>
+    <h1 id="startTitle">Waterworks</h1>
+    <p class="tagline">Water changes what is possible.</p>
+    <p class="lead">Work with a village water committee and its local partners to find, build and keep a water system running.</p>
 
-  <!-- 1 TOP COMMAND BAR -->
-  <header class="topbar on-dark" role="banner">
-    <div class="brand">
-      <span class="logo" aria-hidden="true"><svg class="ic"><use href="#i-drop"/></svg></span>
-      <div class="brand-text">
-        <h1>Waterworks</h1>
-        <p class="scenario" id="scenarioName"></p>
+    <div id="startActions" class="start-actions">
+      <button type="button" class="btn primary big" data-act="start-game">Start Game</button>
+      <button type="button" class="btn big" data-act="continue-game" id="continueBtn" hidden>Continue</button>
+      <button type="button" class="btn ghost" data-act="start-menu">Settings &amp; about</button>
+    </div>
+
+    <form id="nameForm" class="name-form" hidden novalidate>
+      <label for="villageName">Name your village</label>
+      <div class="name-row">
+        <input id="villageName" name="village" type="text" maxlength="24" autocomplete="off" spellcheck="false" placeholder="e.g. Kesi Hill" aria-describedby="nameHint nameError" required>
+        <button type="button" class="btn" data-act="suggest-name">Suggest</button>
       </div>
-    </div>
+      <p id="nameHint" class="hint">A fictional name. The landscape is chosen for you.</p>
+      <p id="nameError" class="error" role="alert"></p>
+      <div class="start-actions">
+        <button type="submit" class="btn primary big">Found the village</button>
+        <button type="button" class="btn ghost" data-act="cancel-name">Back</button>
+      </div>
+    </form>
 
-    <div class="daybox" role="group" aria-label="Current day">
-      <span class="lbl">Day</span><strong id="dayNum">4</strong>
-      <span class="streak" id="streak"></span>
-      <div class="daybar" aria-hidden="true"><i id="dayFill"></i></div>
-    </div>
+    <p id="disclaimerStart" class="disclaimer"></p>
+  </div>
+</section>
 
-    <div id="chapterBanner" class="chapter-banner" hidden aria-live="polite"></div>
+<!-- GAME -->
+<main id="game" class="game" hidden>
+  <div id="stage" class="stage" aria-label="Village map"></div>
 
-    <div class="time" role="group" aria-label="Time controls">
-      <button type="button" class="tbtn" data-speed="pause" aria-pressed="true" aria-label="Pause" data-tip="Pause"><svg class="ic"><use href="#i-pause"/></svg></button>
-      <button type="button" class="tbtn" data-speed="normal" aria-pressed="false" aria-label="Normal speed" data-tip="Normal speed: one day in about 60 seconds"><svg class="ic"><use href="#i-play"/></svg></button>
-      <button type="button" class="tbtn" data-speed="fast" aria-pressed="false" aria-label="Fast" data-tip="Fast: one day in about 20 seconds"><svg class="ic"><use href="#i-fast"/></svg></button>
-    </div>
-
-    <ul class="stats" aria-label="Resources">
-      <li id="statFunding"></li>
-      <li id="statEnergy"></li>
-      <li id="statKnowledge"></li>
-    </ul>
-
-    <div class="people" id="statPeople"></div>
-
-    <div class="tools">
-      <button type="button" class="tool" id="btnAbout" aria-label="About and science"><svg class="ic"><use href="#i-book"/></svg><span>Science</span></button>
-      <button type="button" class="tool" id="btnHelp" aria-label="Help"><svg class="ic"><use href="#i-help"/></svg><span>Help</span></button>
-      <button type="button" class="tool" id="btnSettings" aria-label="Settings"><svg class="ic"><use href="#i-gear"/></svg><span>Settings</span></button>
-    </div>
+  <header class="hud">
+    <div id="hudId" class="hud-card hud-id"></div>
+    <button type="button" id="hudObjective" class="hud-card objective" data-act="open-checklist" aria-label="Current objective. Open the project checklist."></button>
+    <ul id="hudStats" class="hud-card hud-stats" aria-label="Village status and resources"></ul>
   </header>
 
-  <div class="workspace" id="workspace">
-    <!-- 2 LEFT PLANNING RAIL -->
-    <nav class="rail on-dark" id="rail" aria-label="Planning rail"><div class="rail-inner" id="railInner"></div></nav>
+  <section id="checklist" class="hud-card checklist" aria-label="Project checklist"></section>
+  <aside id="sheet" class="hud-card sheet" aria-labelledby="sheetTitle" hidden></aside>
+  <div id="guide" class="hud-card guide" role="note" hidden></div>
+  <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+  <p class="footnote">Independent prototype inspired by charity: water</p>
+</main>
 
-    <!-- 3 CENTRAL MAP -->
-    <main class="stage" id="stage" tabindex="-1" aria-label="Community map">
-      <div class="loopbar" id="loopbar" role="group" aria-label="Daily loop: observe, test, allocate, build, run the day, see consequences, adapt"></div>
-      <div class="mapwrap">
-        <div class="mapstage" id="mapstage"></div>
-        <div class="weatherbox" id="weatherbox"></div>
-        <div class="layers" id="maptools" role="group" aria-label="Map layers"></div>
-        <div id="toasts" role="status" aria-live="polite" aria-atomic="false"></div>
-        <div class="journey" id="journey" role="group" aria-label="Follow the water: click a step to inspect it"></div>
-      </div>
-    </main>
-
-    <!-- 4 RIGHT INSPECTION PANEL -->
-    <aside class="inspector" id="inspector" aria-label="Inspection panel" tabindex="-1"></aside>
-
-    <!-- 6 DAILY ALLOCATION DRAWER -->
-    <section class="drawer" id="allocDrawer" hidden aria-labelledby="allocTitle" tabindex="-1"></section>
-  </div>
-
-  <!-- 5 BOTTOM SYSTEM DASHBOARD -->
-  <section class="dashboard" id="dashboard" aria-label="System dashboard"></section>
-</div>
-
-<dialog id="dlgEvent" class="dlg dlg-event" aria-labelledby="evTitle"></dialog>
-<dialog id="dlgSummary" class="dlg dlg-summary" aria-labelledby="sumTitle"></dialog>
-<dialog id="dlgSecurity" class="dlg dlg-narrow" aria-labelledby="secTitle"></dialog>
-<dialog id="dlgAbout" class="dlg" aria-labelledby="aboutTitle"></dialog>
-<dialog id="dlgHelp" class="dlg" aria-labelledby="helpTitle"></dialog>
-<dialog id="dlgSettings" class="dlg dlg-narrow" aria-labelledby="setTitle"></dialog>
-<dialog id="dlgRoutines" class="dlg" aria-labelledby="routTitle"></dialog>
-<dialog id="dlgWatch" class="dlg dlg-narrow" aria-labelledby="watchTitle"></dialog>
-<dialog id="dlgChapterComplete" class="dlg dlg-summary" aria-labelledby="chapterCompleteTitle"></dialog>
-
-<div id="tooltip" role="tooltip" hidden></div>
+<dialog id="dlg" class="dlg" aria-labelledby="dlgTitle"></dialog>
 <div id="announcer" class="sr-only" role="status" aria-live="polite"></div>
 
-<script src="js/mock-data.js"></script>
-<script src="js/sim.js"></script>
-<script src="js/map.js"></script>
-<script src="js/views.js"></script>
-<script src="js/views-dialogs.js"></script>
-<script src="js/app.js"></script>
+<script src="js/village/data.js"></script>
+<script src="js/village/sim.js"></script>
+<script src="js/village/audio.js"></script>
+<script src="js/village/scene.js"></script>
+<script src="js/village/ui.js"></script>
+<script src="js/village/app.js"></script>
 </body>
 </html>

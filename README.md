@@ -1,4 +1,50 @@
-# Waterworks — Interactive Wireframe
+# Waterworks
+
+**Water changes what is possible.** An illustrated village water-project game: name a fictional village, meet its water committee and local partner team, investigate the water, build a system that fits the place, and keep it flowing.
+
+*Waterworks is an independent educational prototype inspired by charity: water. It is not an official charity: water product.*
+
+## Play
+
+No build step and no dependencies. Static files only, so it works on GitHub Pages or Vercel.
+
+```bash
+python3 -m http.server 8000      # then open http://localhost:8000
+# or just open index.html in a browser
+```
+
+- `index.html`: the **village game** (in development; Level 1 of 5 is playable).
+- `municipal.html`: the original municipal-utility prototype, kept unchanged and documented below.
+- `?scenario=highland|plateau|wetland` forces a landscape (for testing and teaching). Normally it is chosen for you.
+
+Progress saves automatically in your browser (`localStorage`). Use **Menu → New village** or **Reset game** to start over.
+
+## Test
+
+```bash
+node --test tests/                                   # model unit tests
+node --experimental-websocket tests/smoke.mjs        # full Level 1 playthrough in headless Chrome (needs Chrome installed)
+```
+
+## Village game files
+
+| Path | Purpose |
+| --- | --- |
+| `js/village/data.js` | Scenarios, painted-scene hotspots and crops, technology registry, levels, characters, copy |
+| `js/village/sim.js` | Pure model: seeded generation, gathering, building, objectives, save/load |
+| `js/village/scene.js` | Painting + SVG overlays (cottages, construction states, jerry-can walkers) + accessible hotspot buttons |
+| `js/village/ui.js` | HTML templates for the HUD, checklist, panels and dialogs |
+| `js/village/audio.js` | One looping music track (`assets/audio/waterworks-ambient.mp3`) with saved mute and volume |
+| `js/village/app.js` | Controller: flow, events, persistence |
+| `css/village.css` | Village game styles (shares `css/tokens.css`) |
+| `docs/WATERWORKS_VILLAGE_REDESIGN.md` | The redesign proposal |
+| `docs/IMPLEMENTATION_PLAN.md` | Decisions, conflicts, phases, acceptance tests, art asset spec |
+
+---
+
+# Municipal prototype (legacy)
+
+The sections below describe `municipal.html`, the earlier municipal water-system wireframe. Its files (`js/*.js`, `css/app.css`, `css/map.css`) are unchanged.
 
 A desktop-first, clickable prototype of **Waterworks**, a small-city water-system builder. It makes the core loop legible without a tutorial:
 
@@ -14,7 +60,7 @@ No build step, no dependencies.
 
 ```bash
 # Option A: just open the file
-open index.html
+open municipal.html
 
 # Option B: a local server (any will do)
 python3 -m http.server 8000     # then visit http://localhost:8000
@@ -27,7 +73,7 @@ Designed for 1440 × 900. Checked at 1440 × 900, 1280 × 800 and 1024 × 768. B
 The project is intentionally split into runtime code and reference material:
 
 ```text
-index.html       browser entry point
+municipal.html   browser entry point (legacy prototype)
 css/             visual system and map styling
 js/              controller, simulation, views, and map
 assets/          environment artwork and audio manifest
@@ -39,7 +85,7 @@ Runtime files:
 
 | File | Purpose |
 | --- | --- |
-| `index.html` | Semantic page shell, landmarks, dialogs, inline SVG icon sprite |
+| `municipal.html` | Semantic page shell, landmarks, dialogs, inline SVG icon sprite |
 | `css/tokens.css` | Documented design tokens: colour, type, spacing, borders, motion, layout |
 | `css/app.css` | Layout and components (top bar, rail, inspector, dashboard, drawer, dialogs) |
 | `css/map.css` | Map styling, water-flow and status animation, reduced-motion rules |
