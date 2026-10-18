@@ -194,7 +194,7 @@
     return `${banner(s)}
       <div class="dlg-head"><div><p class="kicker">Project briefing · ${esc(sc.name)}</p><h2 id="dlgTitle">Welcome to ${esc(s.name)}</h2></div></div>
       <div class="dlg-body">
-        <p>A local partner team, supported by a charity: water-inspired clean-water initiative, is beginning an assessment of the community’s water needs.</p>
+        <p>A local partner team, supported by charity: water, is beginning an assessment of the community’s water needs.</p>
         <p>Your role is to work with the village water committee, investigate available sources, and help develop a water system designed for this place.</p>
         <p class="muted">${esc(s.name)} is home to about ${fmt(s.population)} people. ${esc(sc.landscape)}</p>
         <div class="person-line">${portrait('officer', 48)}<p><b>${esc(s.people.officer.name)}</b>, field officer: “First, let’s meet the committee, see how families collect water today, and gather wood and stone for a small field-testing station.”</p></div>

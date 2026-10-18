@@ -2,7 +2,7 @@
 
 **Water changes what is possible.** An illustrated village water-project game: name a fictional village, meet its water committee and local partner team, investigate the water, build a system that fits the place, and keep it flowing.
 
-*Waterworks is an independent educational prototype inspired by charity: water. It is not an official charity: water product.*
+*Waterworks is an educational student project created in collaboration with charity: water.*
 
 ## Play
 

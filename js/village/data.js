@@ -19,7 +19,7 @@
 
   WV.data = {
     saveVersion: 1,
-    disclaimer: 'Waterworks is an independent educational prototype inspired by charity: water. It is not an official charity: water product.',
+    disclaimer: 'Waterworks is an educational student project created in collaboration with charity: water.',
     gameplayNote: 'Populations, distances, times, rainfall, depths and amounts are simplified, fictional gameplay values.',
     learnUrl: 'https://www.charitywater.org/',
     jerryCanLitres: 20, // [ref] the common yellow jerry can holds about 20 litres

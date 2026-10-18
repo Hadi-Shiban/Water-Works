@@ -11,7 +11,7 @@ This plan builds on [`WATERWORKS_VILLAGE_REDESIGN.md`](WATERWORKS_VILLAGE_REDESI
 | 1 | Baseline commit before branching | **Approved** | Done: `2591caf` on `main`. Work continues on `feature/village-redesign`. Nothing is pushed. |
 | 2 | Keep the legacy prototype reachable | **Resolved by prompt** | `municipal.html` is a byte-identical copy of the old `index.html`. It loads the untouched `js/*.js` and `css/*.css`. |
 | 3 | Scenario selection | **Default applied** | Random, seeded from the village name plus a stored salt. A hidden `?scenario=highland\|plateau\|wetland` URL parameter is available for testing and teachers. |
-| 4 | Use of the charity: water name | **Resolved by prompt** | "Inspired by" framing, no logo, and the prompt's exact disclaimer. |
+| 4 | Use of the charity: water name | **Updated** | Sanctioned student collaboration: the wordmark is shown in the lab art, and the disclaimer reads “Waterworks is an educational student project created in collaboration with charity: water.” |
 | 5 | Art | **Partly open (see §3)** | The prompt fixes env-01, env-05 and env-04. The village art-reference image mentioned in the prompt is **not in the repository**. |
 | 6 | Character names | **Default applied, review needed** | A neutral, multilingual name pool in data. Roles come first; names are replaceable. |
 | 7 | Second technology per scenario | **Default applied** | Informational cards in v1 (BioSand, protected spring, solar piped). Only the three primary technologies are buildable. |
