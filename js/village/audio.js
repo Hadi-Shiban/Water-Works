@@ -25,7 +25,7 @@
 
   const save = () => { try { root.localStorage.setItem(KEY, JSON.stringify({ muted: prefs.muted, volume: prefs.volume })); } catch (e) { /* storage may be blocked */ } };
   const emit = () => listeners.forEach((fn) => fn(state()));
-  const state = () => ({ muted: prefs.muted, volume: prefs.volume, available: !failed, playing: !!el && !el.paused });
+  const state = () => ({ muted: prefs.muted, volume: prefs.volume, available: !failed, playing: !!el && !el.paused, position: el ? el.currentTime : 0 });
 
   function ensure() {
     if (el || failed) return el;

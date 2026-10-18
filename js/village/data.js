@@ -1,11 +1,13 @@
 /* =============================================================================
    WATERWORKS VILLAGE — DATA
    -----------------------------------------------------------------------------
-   Everything the village game "knows": scenarios, painted scenes (crop,
-   hotspots, routes), the technology registry, levels, characters and copy.
+   Everything the village game "knows": scenarios, painted scenes (hotspots,
+   walking routes), site facts, the technology registry, levels, characters
+   and copy.
 
-   Coordinates are PERCENT OF THE FULL PAINTING (0–100 on each axis), so a
-   scene can be re-cropped or its painting swapped by editing numbers only.
+   Coordinates are PERCENT OF THE FULL PAINTING (0–100 on each axis), so art
+   can be swapped by editing numbers only. Use index.html?dev=routes to see,
+   drag and copy route waypoints over the painting.
 
    Provenance tags, as in the municipal prototype:
      [game] invented gameplay value (fictional, tunable)
@@ -18,11 +20,12 @@
   WV.data = {
     saveVersion: 1,
     disclaimer: 'Waterworks is an independent educational prototype inspired by charity: water. It is not an official charity: water product.',
-    gameplayNote: 'Populations, distances, times and amounts are simplified, fictional gameplay values.',
+    gameplayNote: 'Populations, distances, times, rainfall, depths and amounts are simplified, fictional gameplay values.',
     learnUrl: 'https://www.charitywater.org/',
     jerryCanLitres: 20, // [ref] the common yellow jerry can holds about 20 litres
+    litresPerPersonGoal: 20, // [ref] a commonly used basic-access benchmark (WHO), used here as a game target
     music: { src: 'assets/audio/waterworks-ambient.mp3', defaultVolume: 0.25 },
-    startArt: 'assets/environments/env-02-aspen-river.png',
+    startArt: 'assets/images/village/highland-springs/bg-main.png',
 
     /* Fictional, multilingual pool. Roles come first; names are replaceable. */
     namePool: ['Amani', 'Nia', 'Tomas', 'Lina', 'Kofi', 'Mei', 'Ravi', 'Sami', 'Ayo', 'Esi', 'Daniel', 'Rosa',
@@ -32,6 +35,7 @@
       end: [' Hill', ' Springs', ' Rock', ' Crossing', ' Meadow', ' Ridge', ' Bend', ' Fields'],
     },
 
+    /* Order matters: names are dealt in this order, so new roles go at the end. */
     roles: [
       { id: 'chair', title: 'Water committee chair', hope: 'More time for the terraces and the school garden',
         line: 'Welcome. The committee has wanted a safe water point close to home for years. We know which families walk farthest, so we will decide together where things go.' },
@@ -41,115 +45,236 @@
         line: 'I fix bicycles and radios. If {village} gets a water system, I want to be the one who keeps it running.' },
       { id: 'officer', title: 'Field officer, local partner team', hope: 'A project the village runs on its own',
         line: 'I grew up two valleys over. Our team supports the committee: surveys, engineering, training. The decisions are theirs.' },
+      { id: 'engineer', title: 'Water engineer, local partner team', hope: 'Systems that still work in twenty years',
+        line: 'Every place has its own answer. We look at the land, the rain and the water underground before anyone picks a design.' },
     ],
     committeeRoles: ['chair', 'treasurer', 'caretaker'],
 
-    /* ---- Scenarios ----------------------------------------------------------- */
+    /* ---- Scenarios ----------------------------------------------------------------
+       site: ranges for the facts that surveys and tests reveal in Level 2 [game].  */
     scenarios: {
       highland: {
         id: 'highland', name: 'Highland Springs', scene: 'highland', primaryTech: 'gravityFed',
         population: [160, 300],      // [game]
         roundTripMin: [50, 80],      // [game]
         tripsPerDay: 2, cansPerTrip: 2, // [game] per household
-        landscape: 'It sits on a meadow above a quiet alpine lake, below a forested ridge. Families carry water up from the rocky stream below the lake.',
+        landscape: 'Its homes sit around a big shade tree in a green valley. Families climb the stone steps to an open spring pool high on the hillside.',
+        site: { springAbove: true, springHeadM: [25, 60], springDistanceKm: [0.8, 1.4], springYearRound: true,
+          groundwaterDepthM: [45, 80], groundwaterSalty: false, rigAccess: false, rainfallMm: [900, 1300], bigRoofsM2: [60, 110] },
       },
       plateau: {
         id: 'plateau', name: 'Red Rock Plateau', scene: 'plateau', primaryTech: 'drilledWell',
         population: [220, 380], roundTripMin: [70, 110], tripsPerDay: 2, cansPerTrip: 2,
-        landscape: 'Its adobe homes sit on a dry bench above a red-rock canyon. Families walk down to a seep pool below the cliffs, where the water slows to a trickle in the dry months.',
+        landscape: 'Its stone houses sit on a dry plateau above a red-rock canyon. Families carry water up from a river dock below the village, and the canyon spring dries up for months each year.',
+        site: { springAbove: false, springHeadM: [0, 0], springDistanceKm: [1.4, 2.2], springYearRound: false,
+          groundwaterDepthM: [50, 90], groundwaterSalty: false, rigAccess: true, rainfallMm: [200, 350], bigRoofsM2: [90, 160] },
       },
       wetland: {
         id: 'wetland', name: 'Wetland Crossroads', scene: 'wetland', primaryTech: 'rainwater',
         population: [120, 220], roundTripMin: [25, 45], tripsPerDay: 3, cansPerTrip: 2,
-        landscape: 'It sits at the edge of a broad wetland where rain falls most of the year. Water is everywhere. Water that is safe to drink is harder to find.',
+        landscape: 'It sits among ponds, reeds and boardwalks where rain falls most of the year. Water is everywhere. Water that is safe to drink is harder to find.',
+        site: { springAbove: false, springHeadM: [0, 0], springDistanceKm: [3, 5], springYearRound: false,
+          groundwaterDepthM: [4, 10], groundwaterSalty: true, rigAccess: true, rainfallMm: [1400, 1900], bigRoofsM2: [750, 1050] },
+        // roofs × rain must cover ≥ 50% of 20 L/person/day even for the largest village with the least rain
       },
     },
 
-    /* ---- Painted scenes --------------------------------------------------------
-       crop: visible part of the painting (percent). Leaves out the dam and solar
-       station (env-05) and the town wastewater plant (env-04).
-       uiScale: size of overlay art relative to the painting.
-       walkerScale: [at the village end of the route, at the source end].       */
+    /* What each site fact is called on the Site card, and how it is shown. */
+    facts: {
+      springAbove: { label: 'Spring above the village', show: (v) => (v ? 'Yes' : 'No') },
+      springHeadM: { label: 'Height of spring above homes', show: (v) => (v ? `about ${v} m` : '—') },
+      springDistanceKm: { label: 'Distance to the spring', show: (v) => `about ${v} km` },
+      springYearRound: { label: 'Spring flows all year', show: (v) => (v ? 'Yes' : 'No, dries up') },
+      groundwaterDepthM: { label: 'Depth to groundwater', show: (v) => `about ${v} m` },
+      groundwaterSalty: { label: 'Groundwater taste', show: (v) => (v ? 'Salty' : 'Fresh') },
+      rigAccess: { label: 'Drilling rig can reach', show: (v) => (v ? 'Yes' : 'No') },
+      rainfallMm: { label: 'Rainfall', show: (v) => `about ${v} mm a year` },
+      bigRoofsM2: { label: 'Large, sturdy roofs', show: (v) => `about ${v} m²` },
+    },
+
+    /* ---- Painted scenes ---------------------------------------------------------------
+       structureScale: size of overlay structures relative to the painting.
+       walkerScale: [at the top of the painting, at the bottom] (gentle depth).
+       routes: smooth paths through waypoints along the painted roads.
+         speed px/s of painting · walkers count · spacing seconds between walkers
+         mode 'outAndBack' (walk to the end, turn, walk back) · cans: carries jerry cans
+         collectAfter replaces collect once builds[whenBuilt] is 'built'.          */
     scenes: {
       highland: {
-        image: 'assets/environments/env-01-alpine-headwaters.png', w: 1672, h: 941,
-        crop: { x: 0, y: 0, w: 100, h: 100 }, focus: { x: 20, y: 66 },
-        structureScale: 1.5, walkerScale: [1.25, 1.55],
-        cottages: [[6.5, 60.5, 1.25], [11.5, 62.8, 1.15], [18.5, 61.4, 1.08], [8.4, 67.6, 1.35], [14.8, 69.4, 1.3], [21.2, 66.8, 1.2]],
-        route: [[14.5, 68], [16, 74], [19, 81], [28, 86], [42, 87.5], [55, 85.5], [64, 83.5], [71, 83]],
-        hotspots: [
-          { id: 'committee', kind: 'committee', x: 13.6, y: 65.2, label: 'Meeting tree' },
-          { id: 'homes', kind: 'place', x: 20.2, y: 58.6, label: 'Homes' },
-          { id: 'source', kind: 'source', x: 72, y: 83, label: 'Lower stream' },
-          { id: 'spring', kind: 'place', x: 10.6, y: 51, label: 'Hillside spring' },
-          { id: 'lake', kind: 'place', x: 47, y: 57, label: 'The lake' },
-          { id: 'lab', kind: 'site', x: 35, y: 63.5, label: 'Station site' },
-          { id: 'wood1', kind: 'node', res: 'wood', x: 24, y: 75, charges: 3, yield: 2 },
-          { id: 'wood2', kind: 'node', res: 'wood', x: 86.5, y: 69, charges: 3, yield: 2 },
-          { id: 'stone1', kind: 'node', res: 'stone', x: 36, y: 81, charges: 3, yield: 2 },
-          { id: 'stone2', kind: 'node', res: 'stone', x: 58, y: 90, charges: 3, yield: 2 },
-        ],
-        places: {
-          committee: { title: 'Meeting tree', text: 'The committee meets in the shade here after the morning chores.' },
-          homes: { title: 'Homes', text: '{households} households live in {village}. Most keep two yellow jerry cans by the door, 20 litres each when full.' },
-          spring: { title: 'Hillside spring', text: 'Water seeps from the slope above the village and runs down into the lake. It is hard to reach through the brush, so nobody collects from it yet.', note: 'The partner team wants to survey this spring.' },
-          lake: { title: 'The lake', text: 'Wide, calm and beautiful. Cattle and wildlife drink along its edges.', note: 'Clear-looking water can still carry germs. Only a test can tell.' },
-          source: { title: 'Lower stream', text: 'The nearest flowing water is the rocky stream below the lake. The path crosses boulders and loose stones.', looks: 'Clear and cold' },
-          lab: { title: 'Station site', text: 'A flat, dry spot the committee suggested for a small field-testing station.' },
-        },
-      },
-      plateau: {
-        image: 'assets/environments/env-05-redrock-resilience.png', w: 1672, h: 941,
-        crop: { x: 0, y: 14, w: 68, h: 72 }, focus: { x: 24, y: 42 },
-        structureScale: 0.9, walkerScale: [0.7, 0.95],
+        image: 'assets/images/village/highland-springs/bg-main.png', w: 1672, h: 941,
+        crop: { x: 0, y: 0, w: 100, h: 100 }, focus: { x: 50, y: 45 },
+        structureScale: 1.05, walkerScale: [1.0, 1.2],
         cottages: [],
-        route: [[29.5, 36.8], [27, 40.5], [23.5, 44], [20, 47.5], [16.5, 51], [13, 53.6]],
+        routes: {
+          collect: { label: 'Water collection: plaza to spring pool', speed: 34, walkers: 3, spacing: 7, mode: 'outAndBack', cans: true, lit: true,
+            points: [[50, 49], [46, 47], [43, 45], [40, 43.5], [37.5, 42.5], [35, 41], [33, 38.5], [31, 35.5], [29, 32.5], [27, 29.8], [25.3, 27.6], [24.2, 25.2], [23.3, 22.6], [22, 20.2], [20, 18.4], [17.5, 17.6]] },
+          collectAfter: { label: 'Water collection: plaza tapstand', whenBuilt: 'waterPoint', speed: 30, walkers: 2, spacing: 4, mode: 'outAndBack', cans: true, lit: true,
+            points: [[46, 47], [50, 49], [54, 50.5], [57, 51]] },
+          ambient: [
+            { id: 'quarry', label: 'Plaza to quarry', speed: 30, walkers: 1, spacing: 0, mode: 'outAndBack', cans: false,
+              points: [[56, 52], [61, 53.5], [66, 55], [71, 54.5], [75, 52], [77, 47], [77.5, 42], [78.5, 37.5], [80.5, 34]] },
+            { id: 'lumber', label: 'Plaza to lumber yard', speed: 28, walkers: 1, spacing: 0, mode: 'outAndBack', cans: false,
+              points: [[58, 56], [64, 57.5], [70, 57.5], [76, 57], [82, 57], [87, 56]] },
+            { id: 'bridge', label: 'Plaza to south fields', speed: 26, walkers: 1, spacing: 0, mode: 'outAndBack', cans: false,
+              points: [[55, 56], [59, 58.5], [62.5, 61.5], [58.5, 64.5], [54.5, 67.5], [51, 70], [47, 72.5], [42, 74.5]] },
+          ],
+        },
         hotspots: [
-          { id: 'committee', kind: 'committee', x: 31, y: 34.6, label: 'Village square' },
-          { id: 'homes', kind: 'place', x: 22.6, y: 32.4, label: 'Homes' },
-          { id: 'source', kind: 'source', x: 12, y: 54, label: 'Seep pool' },
-          { id: 'river', kind: 'place', x: 54, y: 56.5, label: 'Canyon river' },
-          { id: 'gardens', kind: 'place', x: 28.5, y: 48.5, label: 'Terrace gardens' },
-          { id: 'lab', kind: 'site', x: 41, y: 34.5, label: 'Station site' },
-          { id: 'wood1', kind: 'node', res: 'wood', x: 8, y: 66, charges: 3, yield: 2 },
-          { id: 'wood2', kind: 'node', res: 'wood', x: 41, y: 62, charges: 3, yield: 2 },
-          { id: 'stone1', kind: 'node', res: 'stone', x: 26.6, y: 60, charges: 3, yield: 2 },
-          { id: 'stone2', kind: 'node', res: 'stone', x: 47, y: 79, charges: 3, yield: 2 },
+          { id: 'committee', kind: 'committee', x: 54, y: 45.5, label: 'Meeting tree' },
+          { id: 'homes', kind: 'place', x: 51.5, y: 35.5, label: 'Homes' },
+          { id: 'school', kind: 'place', x: 67, y: 46, label: 'School' },
+          { id: 'gardens', kind: 'place', x: 47, y: 20, label: 'Terrace gardens' },
+          { id: 'source', kind: 'source', x: 15, y: 12.5, label: 'Spring pool' },
+          { id: 'river', kind: 'water', x: 74, y: 78, label: 'River' },
+          { id: 'lab', kind: 'site', x: 84, y: 58.5, label: 'Station site' },
+          { id: 'survey1', kind: 'survey', minLevel: 2, x: 8.5, y: 11.5, label: 'Spring source' },
+          { id: 'survey2', kind: 'survey', minLevel: 2, x: 28, y: 31, label: 'Hillside track' },
+          { id: 'wood1', kind: 'node', res: 'wood', x: 89, y: 51, charges: 3, yield: 2 },
+          { id: 'wood2', kind: 'node', res: 'wood', x: 14, y: 44, charges: 3, yield: 2 },
+          { id: 'stone1', kind: 'node', res: 'stone', x: 79, y: 29, charges: 3, yield: 2 },
+          { id: 'stone2', kind: 'node', res: 'stone', x: 88, y: 33, charges: 3, yield: 2 },
         ],
         places: {
-          committee: { title: 'Village square', text: 'The committee gathers in the shade of the old adobe wall.' },
-          homes: { title: 'Homes', text: '{households} households live in {village}. Thick adobe walls keep the houses cool, and two yellow jerry cans wait by most doors.' },
-          river: { title: 'Canyon river', text: 'The river runs far below the village. The path down is steep, and the water turns brown after storms upstream.' },
-          gardens: { title: 'Terrace gardens', text: 'Families grow squash, beans and herbs on stone terraces, watered by hand.', note: 'More water close to home could mean bigger gardens.' },
-          source: { title: 'Seep pool', text: 'Below the cliffs, water trickles out of the rock into a shallow pool. In the dry months it slows to a drip and the queue grows.', looks: 'Clear once it settles' },
-          lab: { title: 'Station site', text: 'A flat patch beside the fields that the committee suggested for a small field-testing station.' },
+          committee: { title: 'Meeting tree', text: 'The committee meets on the benches under the big tree, where every path in the village crosses.' },
+          homes: { title: 'Homes', text: '{households} households live in {village}. Most keep two yellow jerry cans by the door, 20 litres each when full.' },
+          school: { title: 'School', text: 'Children come from every corner of the valley. Lessons start after the morning water run.' },
+          gardens: { title: 'Terrace gardens', text: 'Stone terraces of cabbages and beans, watered by hand from the stream.', note: 'More water close to home could mean bigger harvests.' },
+          source: { title: 'Spring pool', text: 'Water tumbles out of the hillside into an open pool. Families climb the stone steps to fill their jerry cans here.',
+            looks: 'Clear and sparkling', note: 'Goats drink at the edge, and cans are dipped straight in.' },
+          river: { title: 'River', text: 'A fast river below the village. Cattle cross it upstream.', looks: 'Slightly cloudy' },
+          lab: { title: 'Station site', text: 'An empty fenced plot by the lumber yard, which the committee offered for a small field-testing station.' },
+          survey1: { title: 'Spring source', text: 'Where the spring first comes out of the rock, above the pool.' },
+          survey2: { title: 'Hillside track', text: 'The steep track between the spring and the village.' },
+        },
+        samples: {
+          source: { looks: 'Clear and sparkling', clarity: 'clear', germ: 'unsafe', salty: false,
+            clue: 'Germs from animals and hands get into an open pool, even when the water looks perfect.' },
+          river: { looks: 'Slightly cloudy', clarity: 'cloudy', germ: 'unsafe', salty: false,
+            clue: 'Cattle upstream and soil washing in after rain.' },
+        },
+        surveys: {
+          survey1: { title: 'Survey the spring', reveals: ['springAbove', 'springHeadM', 'springYearRound', 'springDistanceKm'],
+            done: 'The spring sits well above the village and the committee says it has never run dry.' },
+          survey2: { title: 'Walk the hillside', reveals: ['rigAccess', 'groundwaterDepthM', 'groundwaterSalty', 'rainfallMm', 'bigRoofsM2'],
+            done: 'Steep, rocky tracks, deep hard rock, and small roofs.' },
         },
       },
-      wetland: {
-        image: 'assets/environments/env-04-wetland-crossroads.png', w: 1672, h: 941,
-        crop: { x: 0, y: 14, w: 66, h: 72 }, focus: { x: 22, y: 44 },
-        structureScale: 0.78, walkerScale: [0.62, 0.82],
-        cottages: [[23.4, 37.6, 0.42], [27, 36.8, 0.4], [25.6, 40.4, 0.45]],
-        route: [[18.5, 38.6], [20.6, 42.4], [23, 46.2], [25.8, 50.2], [28.6, 54.4]],
+
+      plateau: {
+        image: 'assets/images/village/red-rock-plateau/bg-main.png', w: 1672, h: 941,
+        crop: { x: 0, y: 0, w: 100, h: 100 }, focus: { x: 50, y: 50 },
+        structureScale: 0.95, walkerScale: [0.95, 1.15],
+        cottages: [],
+        routes: {
+          collect: { label: 'Water collection: square to river dock', speed: 30, walkers: 3, spacing: 6, mode: 'outAndBack', cans: true, lit: true,
+            points: [[54, 56], [56.5, 59], [59.5, 62], [62.5, 64.5], [65, 67], [67, 69.5], [67.5, 72.5]] },
+          collectAfter: { label: 'Water collection: well beside the square', whenBuilt: 'waterPoint', speed: 28, walkers: 2, spacing: 4, mode: 'outAndBack', cans: true, lit: true,
+            points: [[54, 56], [57, 57.5], [60, 58.5]] },
+          ambient: [
+            { id: 'lumber', label: 'Square to lumber yard', speed: 30, walkers: 1, spacing: 0, mode: 'outAndBack', cans: false,
+              points: [[46, 57], [40, 57.5], [35, 56], [31, 53], [26, 51], [20, 51.5], [14, 50], [10, 47.5]] },
+            { id: 'gardens', label: 'Square to gardens', speed: 28, walkers: 1, spacing: 0, mode: 'outAndBack', cans: false,
+              points: [[46, 57], [40, 57.5], [35, 56], [31.5, 52.5], [30.5, 46], [30.5, 40], [30, 34], [29, 29], [26, 27], [22, 26.5]] },
+            { id: 'quarry', label: 'Square to quarry', speed: 30, walkers: 1, spacing: 0, mode: 'outAndBack', cans: false,
+              points: [[57.5, 53.5], [61, 54], [64.5, 53.2], [67.3, 51.6], [69.5, 49.2], [72.5, 47.4], [76, 46.3], [79, 44.3], [82, 41], [84, 38.5]] },
+          ],
+        },
         hotspots: [
-          { id: 'committee', kind: 'committee', x: 17, y: 38, label: 'Farmyard' },
-          { id: 'barn', kind: 'place', x: 13.4, y: 31.4, label: 'Barn roof' },
-          { id: 'homes', kind: 'place', x: 26.4, y: 34.4, label: 'Homes' },
-          { id: 'source', kind: 'source', x: 29, y: 55, label: 'Reed channel' },
-          { id: 'ponds', kind: 'place', x: 40, y: 71, label: 'Wetland ponds' },
-          { id: 'lab', kind: 'site', x: 11, y: 39.5, label: 'Station site' },
-          { id: 'wood1', kind: 'node', res: 'wood', x: 46, y: 53, charges: 3, yield: 2 },
-          { id: 'wood2', kind: 'node', res: 'wood', x: 6, y: 60, charges: 3, yield: 2 },
-          { id: 'stone1', kind: 'node', res: 'stone', x: 33, y: 47.4, charges: 3, yield: 2 },
-          { id: 'stone2', kind: 'node', res: 'stone', x: 23, y: 79, charges: 3, yield: 2 },
+          { id: 'committee', kind: 'committee', x: 54, y: 50.5, label: 'Village square' },
+          { id: 'homes', kind: 'place', x: 38, y: 39, label: 'Homes' },
+          { id: 'school', kind: 'place', x: 60, y: 41, label: 'School' },
+          { id: 'gardens', kind: 'place', x: 17, y: 15, label: 'Terrace gardens' },
+          { id: 'source', kind: 'source', x: 66, y: 76, label: 'River dock' },
+          { id: 'well', kind: 'water', x: 19, y: 25, label: 'Garden well' },
+          { id: 'lab', kind: 'site', x: 47, y: 61, label: 'Station site' },
+          { id: 'survey1', kind: 'survey', minLevel: 2, x: 50, y: 11, label: 'Test rig' },
+          { id: 'survey2', kind: 'survey', minLevel: 2, x: 87, y: 49, label: 'Canyon rim' },
+          { id: 'wood1', kind: 'node', res: 'wood', x: 8, y: 44, charges: 3, yield: 2 },
+          { id: 'wood2', kind: 'node', res: 'wood', x: 17, y: 39, charges: 3, yield: 2 },
+          { id: 'stone1', kind: 'node', res: 'stone', x: 80, y: 27, charges: 3, yield: 2 },
+          { id: 'stone2', kind: 'node', res: 'stone', x: 91, y: 34, charges: 3, yield: 2 },
         ],
         places: {
-          committee: { title: 'Farmyard', text: 'The committee meets by the farmyard fence, where everyone passes.' },
-          barn: { title: 'Barn roof', text: 'The biggest roof in the village. In a storm, water sheets off its edges.', note: 'Rain falls here for most of the year.' },
-          homes: { title: 'Homes', text: '{households} households live in {village}, on the dry ground above the wetland. Two yellow jerry cans wait by most doors.' },
-          ponds: { title: 'Wetland ponds', text: 'Ducks, herons and reeds. The wetland is full of life and full of water.', note: 'But is any of it safe to drink?' },
-          source: { title: 'Reed channel', text: 'Families scoop water from a channel among the reeds. It is close to home, but livestock graze along the banks and floods wash through.', looks: 'Slightly cloudy' },
-          lab: { title: 'Station site', text: 'A dry corner by the fields that the committee suggested for a small field-testing station.' },
+          committee: { title: 'Village square', text: 'The committee gathers in the shade of the big tree, beside the market awning.' },
+          homes: { title: 'Homes', text: '{households} households live in {village}. Thick stone walls keep the houses cool, and two yellow jerry cans wait by most doors.' },
+          school: { title: 'School', text: 'The bell tower can be heard across the plateau. Older children often arrive late after carrying water.' },
+          gardens: { title: 'Terrace gardens', text: 'Families grow squash, beans and herbs behind stone walls, watered by hand.', note: 'More water close to home could mean bigger gardens.' },
+          source: { title: 'River dock', text: 'Below the village, a small dock reaches into the river. Families fill their cans here and carry them back up the slope.',
+            looks: 'Slightly cloudy', note: 'Goats water upstream, and the banks wash in after storms.' },
+          well: { title: 'Garden well', text: 'An old, open, shallow well by the gardens. It runs low in the dry months.', looks: 'Clear' },
+          lab: { title: 'Station site', text: 'A dry, open patch beside the road that the committee offered for a small field-testing station.' },
+          survey1: { title: 'Test rig', text: 'The partner team has set up a small test rig to check what lies underground.' },
+          survey2: { title: 'Canyon rim', text: 'A spring spills down the canyon wall, far below the village.' },
+        },
+        samples: {
+          source: { looks: 'Slightly cloudy', clarity: 'cloudy', germ: 'unsafe', salty: false,
+            clue: 'Animals upstream and soil washing in after storms.' },
+          well: { looks: 'Clear', clarity: 'clear', germ: 'risky', salty: false,
+            clue: 'An open well collects dust, leaves and whatever is on the bucket.' },
+        },
+        surveys: {
+          survey1: { title: 'Read the test rig', reveals: ['groundwaterDepthM', 'groundwaterSalty', 'rigAccess'],
+            done: 'Fresh groundwater, deep down, and the road can carry a drilling rig.' },
+          survey2: { title: 'Survey the canyon', reveals: ['springAbove', 'springHeadM', 'springYearRound', 'springDistanceKm', 'rainfallMm', 'bigRoofsM2'],
+            done: 'The canyon spring is far below the village and dries up for months. Rain is rare.' },
+        },
+      },
+
+      wetland: {
+        image: 'assets/images/village/wetland-crossroads/bg-main.png', w: 1672, h: 941,
+        crop: { x: 0, y: 0, w: 100, h: 100 }, focus: { x: 50, y: 50 },
+        structureScale: 1.0, walkerScale: [0.95, 1.15],
+        cottages: [],
+        routes: {
+          collect: { label: 'Water collection: well square to pond dock', speed: 30, walkers: 3, spacing: 6, mode: 'outAndBack', cans: true, lit: true,
+            points: [[49, 47], [51.5, 50], [54, 53], [57, 55.5], [61, 57.5], [64.5, 60], [67.5, 63], [70.5, 66], [72.5, 68]] },
+          collectAfter: { label: 'Water collection: school tank', whenBuilt: 'waterPoint', speed: 28, walkers: 2, spacing: 4, mode: 'outAndBack', cans: true, lit: true,
+            points: [[52, 47], [57, 47.5], [62, 48.5], [66, 50]] },
+          ambient: [
+            { id: 'lumber', label: 'Square to lumber yard', speed: 30, walkers: 1, spacing: 0, mode: 'outAndBack', cans: false,
+              points: [[45, 43], [40, 41], [35, 39.5], [29, 39], [24, 40], [21, 36], [19.5, 31], [18, 26], [14, 23]] },
+            { id: 'gardens', label: 'Square to gardens', speed: 28, walkers: 1, spacing: 0, mode: 'outAndBack', cans: false,
+              points: [[47, 47.5], [47.5, 51], [48.5, 54.5], [49, 57.5], [48.6, 60], [46.8, 63], [45, 66.5], [43.3, 69.5], [41.6, 72.5], [39, 74], [35.5, 74.5], [32, 73.5], [27, 73]] },
+          ],
+        },
+        hotspots: [
+          { id: 'committee', kind: 'committee', x: 52, y: 50, label: 'Market square' },
+          { id: 'homes', kind: 'place', x: 31, y: 33, label: 'Homes' },
+          { id: 'school', kind: 'place', x: 72, y: 38, label: 'School' },
+          { id: 'gardens', kind: 'place', x: 18, y: 74, label: 'Gardens' },
+          { id: 'source', kind: 'source', x: 74, y: 66, label: 'Pond dock' },
+          { id: 'well', kind: 'water', x: 46.5, y: 42.5, label: 'Village well' },
+          { id: 'lab', kind: 'site', x: 84, y: 45.5, label: 'Station site' },
+          { id: 'survey1', kind: 'survey', minLevel: 2, x: 74, y: 52.5, label: 'School roof' },
+          { id: 'survey2', kind: 'survey', minLevel: 2, x: 40, y: 61, label: 'South boardwalk' },
+          { id: 'wood1', kind: 'node', res: 'wood', x: 12, y: 20, charges: 3, yield: 2 },
+          { id: 'wood2', kind: 'node', res: 'wood', x: 18.5, y: 16, charges: 3, yield: 2 },
+          { id: 'stone1', kind: 'node', res: 'stone', x: 86, y: 17, charges: 3, yield: 2 },
+          { id: 'stone2', kind: 'node', res: 'stone', x: 92, y: 27, charges: 3, yield: 2 },
+        ],
+        places: {
+          committee: { title: 'Market square', text: 'The committee meets by the market awning, where everyone passes.' },
+          homes: { title: 'Homes', text: '{households} households live in {village}, on the dry ground between the ponds. Two yellow jerry cans wait by most doors.' },
+          school: { title: 'School', text: 'The biggest roof in the village. In a storm, water sheets off its edges.', note: 'Rain falls here for most of the year.' },
+          gardens: { title: 'Gardens', text: 'Vegetable beds and little greenhouses on the dry ground south of the village.' },
+          source: { title: 'Pond dock', text: 'Families walk the boardwalk out to the pond and scoop water from the dock. It is close to home, but ducks, cattle and floodwater all reach the pond.',
+            looks: 'Brownish and cloudy' },
+          well: { title: 'Village well', text: 'A shallow hand-pump well on the square. The water comes up fast and clear.', looks: 'Clear' },
+          lab: { title: 'Station site', text: 'A dry corner beside the school that the committee offered for a small field-testing station.' },
+          survey1: { title: 'School roof', text: 'The partner engineer wants to measure the big roofs.' },
+          survey2: { title: 'South boardwalk', text: 'The boardwalk crosses the lowest, wettest part of the village.' },
+        },
+        samples: {
+          source: { looks: 'Brownish and cloudy', clarity: 'cloudy', germ: 'unsafe', salty: false,
+            clue: 'Ducks, cattle and floodwater all reach the pond.' },
+          well: { looks: 'Clear', clarity: 'clear', germ: 'unsafe', salty: true, reveals: ['groundwaterSalty'],
+            clue: 'Floodwater seeps into shallow wells, and here the groundwater is salty too.' },
+        },
+        surveys: {
+          survey1: { title: 'Measure the roofs', reveals: ['bigRoofsM2', 'rainfallMm'],
+            done: 'Big, sturdy roofs, and the school’s rain gauge shows rain most of the year.' },
+          survey2: { title: 'Walk the wetland', reveals: ['springAbove', 'springHeadM', 'springYearRound', 'springDistanceKm', 'groundwaterDepthM', 'rigAccess'],
+            done: 'Flat ground with no springs nearby, and groundwater only a few metres down.' },
         },
       },
     },
@@ -157,6 +282,12 @@
     resources: {
       wood: { name: 'Wood', verb: 'Gather wood', from: 'fallen branches and offcuts' },
       stone: { name: 'Stone', verb: 'Gather stone', from: 'loose stones' },
+    },
+
+    /* What the lab shows for each result [game categories]. */
+    results: {
+      clarity: { clear: 'Clear', cloudy: 'Cloudy' },
+      germ: { safe: { label: 'Safe', colonies: 0, tone: 'ok' }, risky: { label: 'Risky', colonies: 4, tone: 'warn' }, unsafe: { label: 'Unsafe', colonies: 11, tone: 'risk' } },
     },
 
     /* ---- Designated construction sites ---------------------------------------- */
@@ -172,23 +303,32 @@
       },
     },
 
-    /* ---- Technology registry -----------------------------------------------------
-       Phase 1 shows none of this; Phases 2–3 use it. All numbers are [game].     */
+    /* ---- Technology registry -------------------------------------------------------
+       needs: site facts that must be known (from surveys and lab tests) before the
+       experts can judge it. All numbers are [game].                                */
     technologies: {
       gravityFed: { name: 'Gravity-fed system', playable: true, short: 'Pipes water downhill from a protected spring to taps in the village. No pump needed.',
-        suits: 'A reliable spring or stream higher than the village', cost: { wood: 8, stone: 14 }, partnerProvides: ['pipe', 'cement', 'tap fittings'],
-        capacityCans: 420, quality: 'Safe if the spring is protected and the pipes stay sealed.', maintenance: 'Clear the intake, check the pipeline, fix leaks.', structure: 'tank', challenge: 'pipeBreak', upgrade: 'secondTapstand' },
+        suits: 'A reliable spring higher than the village', cost: { wood: 8, stone: 14 }, partnerProvides: ['pipe', 'cement', 'tap fittings'],
+        capacityCans: 420, quality: 'Safe if the spring is protected and the pipes stay sealed.', maintenance: 'Clear the intake, check the pipeline, fix leaks.', structure: 'tank', challenge: 'pipeBreak', upgrade: 'secondTapstand',
+        needs: ['springAbove', 'springHeadM', 'springYearRound'] },
       drilledWell: { name: 'Drilled well with hand pump', playable: true, short: 'A rig drills down to deep groundwater. A sealed hand pump lifts it to the surface.',
-        suits: 'Reliable groundwater, a track a drilling rig can reach', cost: { wood: 6, stone: 16 }, partnerProvides: ['drilling rig', 'pump', 'casing', 'cement'],
-        capacityCans: 360, quality: 'Deep groundwater is usually well protected; the concrete apron keeps surface water out.', maintenance: 'Replace pump seals, keep the apron and drain clean.', structure: 'pump', challenge: 'pumpSeals', upgrade: 'cattleTrough' },
-      rainwater: { name: 'Rainwater catchment', playable: true, short: 'Gutters collect rain from large roofs into a covered storage tank.',
-        suits: 'Plenty of rain, large sturdy roofs', cost: { wood: 10, stone: 12 }, partnerProvides: ['gutters', 'cement', 'mesh', 'tap'],
-        capacityCans: 120, quality: 'Clean if roofs and gutters are kept clean and the first, dirty flush is discarded.', maintenance: 'Clean gutters, check the first-flush diverter, patch cracks.', structure: 'raintank', challenge: 'drySpell', upgrade: 'extraTank' },
-      protectedSpring: { name: 'Protected spring', playable: false, short: 'A spring box seals the spring eye so collection is clean.', suits: 'A spring close to the village' },
-      handDugWell: { name: 'Hand-dug well', playable: false, short: 'A lined well dug by hand to shallow groundwater.', suits: 'Shallow groundwater in soft ground' },
-      solarPiped: { name: 'Solar-powered piped system', playable: false, short: 'A solar pump lifts water to a tank that feeds several taps.', suits: 'A high-yield source, strong sun, a larger community' },
-      bioSand: { name: 'BioSand household filter', playable: false, short: 'A household sand filter that reduces germs and cloudiness. It treats water but does not create more.', suits: 'Households that must use surface water' },
-      rehabilitation: { name: 'Rehabilitation', playable: false, short: 'Repairs a broken existing water point instead of building a new one.', suits: 'Villages with an existing system that has failed' },
+        suits: 'Fresh groundwater and a road a drilling rig can use', cost: { wood: 6, stone: 16 }, partnerProvides: ['drilling rig', 'pump', 'casing', 'cement'],
+        capacityCans: 360, quality: 'Deep groundwater is usually well protected; the concrete apron keeps surface water out.', maintenance: 'Replace pump seals, keep the apron and drain clean.', structure: 'pump', challenge: 'pumpSeals', upgrade: 'cattleTrough',
+        needs: ['rigAccess', 'groundwaterDepthM', 'groundwaterSalty'] },
+      rainwater: { name: 'Rainwater catchment', playable: true, short: 'Gutters collect rain from large roofs into covered storage tanks.',
+        suits: 'Plenty of rain and large, sturdy roofs', cost: { wood: 10, stone: 12 }, partnerProvides: ['gutters', 'cement', 'mesh', 'tap'],
+        capacityCans: 120, quality: 'Clean if roofs and gutters are kept clean and the first, dirty flush is discarded.', maintenance: 'Clean gutters, check the first-flush diverter, patch cracks.', structure: 'raintank', challenge: 'drySpell', upgrade: 'extraTank',
+        needs: ['rainfallMm', 'bigRoofsM2'] },
+      protectedSpring: { name: 'Protected spring', playable: false, short: 'A spring box seals the spring where it comes out of the ground.', suits: 'A spring close to the village',
+        needs: ['springAbove', 'springDistanceKm'] },
+      handDugWell: { name: 'Hand-dug well', playable: false, short: 'A lined well dug by hand down to shallow groundwater.', suits: 'Fresh groundwater only a few metres down',
+        needs: ['groundwaterDepthM', 'groundwaterSalty'] },
+      solarPiped: { name: 'Solar-powered piped system', playable: false, short: 'A solar pump lifts water to a tank that feeds several taps.', suits: 'A strong source, lots of sun, a larger community',
+        needs: ['groundwaterDepthM', 'groundwaterSalty'] },
+      bioSand: { name: 'BioSand household filter', playable: false, short: 'A household sand filter that reduces germs and cloudiness. It treats water but does not create more.', suits: 'Households that must still use surface water',
+        needs: ['surfaceTested'] },
+      rehabilitation: { name: 'Rehabilitation', playable: false, short: 'Repairs a broken water point instead of building a new one.', suits: 'Villages with an existing system that has failed',
+        needs: [] },
     },
 
     /* ---- Levels -----------------------------------------------------------------
@@ -204,7 +344,14 @@
           { id: 'gather', text: (s) => `Gather 6 wood and 4 stone (wood ${Math.min(6, s.gathered.wood)}/6 · stone ${Math.min(4, s.gathered.stone)}/4)`, check: (s) => s.gathered.wood >= 6 && s.gathered.stone >= 4 },
           { id: 'lab', text: () => 'Build the field-testing station (4 wood, 3 stone; needs the committee’s go-ahead)', check: (s) => s.builds.lab === 'built' },
         ] },
-      { id: 2, title: 'Investigate the Water', next: 'Build the Solution', comingSoon: true, objectives: [] },
+      { id: 2, title: 'Investigate the Water', next: 'Build the Solution',
+        objectives: [
+          { id: 'openLab', text: () => 'Open the field lab at the station', check: (s) => !!s.flags.labOpened },
+          { id: 'samples', text: (s) => `Collect water samples from 2 sources (${Math.min(2, s.samples.length)}/2)`, check: (s) => s.samples.length >= 2 },
+          { id: 'tests', text: (s) => `Test both samples in the field lab (${Math.min(2, Object.keys(s.results).length)}/2)`, check: (s) => Object.keys(s.results).length >= 2 },
+          { id: 'surveys', text: (s) => `Survey the land with ${s.people.engineer.name} (${Math.min(2, s.surveys.length)}/2)`, check: (s) => s.surveys.length >= 2 },
+          { id: 'options', text: () => 'Review the water options with the experts (after the tests and surveys)', check: (s) => !!s.flags.optionsReviewed },
+        ] },
       { id: 3, title: 'Build the Solution', next: 'Manage the Water', comingSoon: true, objectives: [] },
       { id: 4, title: 'Manage the Water', next: 'Keep It Flowing', comingSoon: true, objectives: [] },
       { id: 5, title: 'Keep It Flowing', next: null, comingSoon: true, objectives: [] },
@@ -218,7 +365,12 @@
       walk: 'At the {sourcePlace}, choose “Watch the morning walk”.',
       gather: 'We’ll need wood and stone for a small field-testing station. Tap the wood and stone markers.',
       lab: 'The committee has chosen a site for the station. Tap the staked site to build it.',
-      done: 'Nicely done. The station is ready for water testing.',
+      openLab: 'The station is ready. Tap it and open the field lab.',
+      samples: 'Collect water samples from the {sourcePlace} and the {waterPlace}. Both are marked on the map.',
+      tests: 'Back at the field lab, test your samples. Make a guess first: can you tell by looking?',
+      surveys: '{engineer} is ready to survey. Look for the survey markers on the map.',
+      options: 'Tests and surveys are done. Open the field lab and review the water options with the experts.',
+      done: 'Nicely done.',
     },
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -15,7 +15,7 @@
   let s = null;
   // The checklist starts collapsed: the objective chip always shows the next step,
   // and the painted map should stay visible.
-  const ui = { selected: null, watching: false, checklistOpen: false, targets: [], busy: {}, levelShown: false };
+  const ui = { selected: null, watching: false, checklistOpen: false, targets: [], busy: {}, levelShown: false, testing: null, surveying: null };
   const prefs = (() => {
     const def = { reducedMotion: root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches };
     try { return { ...def, ...JSON.parse(root.localStorage.getItem(PREF_KEY) || '{}') }; } catch (e) { return def; }
@@ -35,7 +35,7 @@
     el.innerHTML = `<b>${title}</b>${body ? `<span>${body}</span>` : ''}`;
     el.addEventListener('click', () => el.remove());
     $('toasts').appendChild(el); setTimeout(() => el.remove(), 4200);
-    while ($('toasts').children.length > 3) $('toasts').firstChild.remove();
+    while ($('toasts').children.length > 2) $('toasts').firstChild.remove();
   }
 
   /* ---- Targets: what the next objective points at ------------------------------------- */
@@ -51,6 +51,9 @@
         return sc.hotspots.filter((h) => h.kind === 'node' && need[h.res] && st.nodes[h.id].charges > 0).map((h) => h.id);
       }
       case 'lab': return st.flags.committeeMet ? ['lab'] : ['committee'];
+      case 'openLab': case 'tests': case 'options': return ['lab'];
+      case 'samples': return Object.keys(sc.samples).filter((id) => st.samples.indexOf(id) < 0);
+      case 'surveys': return Object.keys(sc.surveys).filter((id) => st.surveys.indexOf(id) < 0);
       default: return [];
     }
   }
@@ -64,7 +67,9 @@
     $('hudId').innerHTML = U.hudId(s);
     $('hudObjective').innerHTML = U.objective(s);
     $('hudStats').innerHTML = U.stats(s, audio.state());
-    $('checklist').innerHTML = U.checklist(s, ui.checklistOpen);
+    const cl = $('checklist'); const obj = $('hudObjective');
+    cl.hidden = !ui.checklistOpen; obj.setAttribute('aria-expanded', ui.checklistOpen ? 'true' : 'false');
+    if (ui.checklistOpen) { cl.innerHTML = U.checklist(s, true); cl.style.setProperty('--cl-left', obj.offsetLeft + 'px'); }
     const sheet = $('sheet');
     if (ui.selected) { sheet.innerHTML = U.sheet(s, ui.selected, ui); sheet.hidden = false; } else { sheet.hidden = true; sheet.innerHTML = ''; }
     const g = $('guide'); const tip = s.flags.tipsOff ? '' : U.guide(s);
@@ -134,7 +139,7 @@
   function inspect(id) {
     const r = sim.inspect(s, id); if (!r.ok) return;
     ui.selected = id;
-    if (root.innerWidth < 1280) ui.checklistOpen = false;
+    ui.checklistOpen = false;
     commit(r.state);
     scene.scrollToHotspot(id);
     const t = $('sheetTitle'); if (t) t.focus({ preventScroll: true });
@@ -203,6 +208,61 @@
 
   function openMenu() { openDialog(U.menu(s, audio.state(), prefs), 'dlg-narrow'); }
 
+  /* ---- Level 2: lab, samples, surveys, options ------------------------------------------ */
+  // Replace an open dialog's content in place, keeping keyboard focus on the same control.
+  function refreshDialog(html, cls) {
+    const dlg = $('dlg'); if (!dlg.open) return openDialog(html, cls);
+    const ae = document.activeElement; const keep = ae && dlg.contains(ae) && ae.dataset ? { act: ae.dataset.act, id: ae.dataset.id } : null;
+    const scroll = dlg.scrollTop;
+    dlg.className = 'dlg ' + (cls || ''); dlg.innerHTML = html; dlg.scrollTop = scroll;
+    const el = keep && keep.act ? dlg.querySelector(`[data-act="${keep.act}"]${keep.id ? `[data-id="${keep.id}"]` : ''}`) : null;
+    (el || dlg.querySelector('.btn.primary') || dlg.querySelector('button')).focus({ preventScroll: true });
+  }
+  const showLab = () => refreshDialog(U.lab(s, ui), 'dlg-wide dlg-lab');
+  function openLab() {
+    const r = sim.openLab(s); if (!r.ok) { toast('Not yet', U.esc(r.reason)); return; }
+    if (r.state !== s) commit(r.state);
+    showLab();
+  }
+  function collectSample(id) {
+    const r = sim.collectSample(s, id); if (!r.ok) { toast('Not now', U.esc(r.reason)); return; }
+    scene.floatText(id, '+1 water sample');
+    commit(r.state);
+    const left = Object.keys(sim.sceneOf(s).samples).filter((x) => s.samples.indexOf(x) < 0).length;
+    toast('Sample collected', left ? 'Collect one more, then test them at the field lab.' : 'Test your samples at the field lab.', 'good');
+    announce('Water sample collected.');
+  }
+  function predict(id, guess) {
+    if (ui.testing) return;
+    ui.testing = id; showLab();
+    setTimeout(() => {
+      const r = sim.runTest(s, id, guess); ui.testing = null;
+      if (!r.ok) { showLab(); return; }
+      commit(r.state); showLab();
+      announce(`${sim.hotspot(s, id).label}: germ test ${D.results.germ[r.result.germ].label}. ${r.result.salty ? 'Salty. ' : ''}`);
+    }, prefs.reducedMotion ? 250 : 2000);
+  }
+  function doSurvey(id) {
+    if (ui.surveying) return;
+    const sv = sim.sceneOf(s).surveys[id]; if (!sv || s.surveys.indexOf(id) >= 0) return;
+    ui.surveying = id; render();
+    announce(`${s.people.engineer.name} is surveying.`);
+    setTimeout(() => {
+      ui.surveying = null;
+      const r = sim.survey(s, id); if (!r.ok) { render(); return; }
+      commit(r.state);
+      toast(sv.title + ': done', U.esc(sv.done), 'good');
+      announce(sv.done);
+    }, prefs.reducedMotion ? 250 : 1500);
+  }
+  function openOptions() { refreshDialog(U.options(s), 'dlg-wide dlg-options'); }
+  function optionsAgree() {
+    const r = sim.reviewOptions(s); if (!r.ok) { toast('Not yet', U.esc(r.reason)); return; }
+    closeDialog(); commit(r.state);
+    toast('Recommendation shared', 'The committee will make the final choice when building starts.', 'good');
+  }
+  function gotoHotspot(id) { closeDialog(); setTimeout(() => inspect(id), 0); }
+
   /* ---- Events (delegated) ------------------------------------------------------------------------- */
   function act(a, id, el) {
     switch (a) {
@@ -223,12 +283,19 @@
       case 'committee-agree': committeeAgree(); break;
       case 'build': build(id); break;
       case 'toggle-checklist': ui.checklistOpen = !ui.checklistOpen; render(); break;
-      case 'open-checklist': ui.checklistOpen = true; render(); { const h = document.querySelector('.cl-head'); if (h) h.focus(); } break;
+      case 'open-checklist': ui.checklistOpen = !ui.checklistOpen; render(); break;
       case 'hide-tips': commit(sim.setFlag(s, 'tipsOff', true)); toast('Tips hidden', 'Turn them back on from the menu.'); break;
       case 'toggle-music': audio.toggle(); break;
       case 'open-menu': openMenu(); break;
       case 'close-dialog': closeDialog(); break;
       case 'next-level': closeDialog(); break;
+      case 'open-lab': openLab(); break;
+      case 'collect-sample': collectSample(id); break;
+      case 'predict': predict(id, el.dataset.pred); break;
+      case 'survey': doSurvey(id); break;
+      case 'open-options': openOptions(); break;
+      case 'options-agree': optionsAgree(); break;
+      case 'goto': gotoHotspot(id); break;
       case 'new-village':
         if (root.confirm('Start a new village? Your current village will be replaced.')) { closeDialog(); s = null; showStart(); showNameForm(); }
         break;
@@ -256,6 +323,7 @@
   });
   $('nameForm').addEventListener('submit', (e) => { e.preventDefault(); createVillage($('villageName').value); });
   document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('dlg').open && ui.checklistOpen) { e.preventDefault(); ui.checklistOpen = false; render(); $('hudObjective').focus(); return; }
     if (e.key === 'Escape' && !$('dlg').open && ui.selected) { e.preventDefault(); closeSheet(); }
   });
   audio.onChange(() => { if (s && !$('game').hidden) $('hudStats').innerHTML = U.stats(s, audio.state()); });
@@ -274,7 +342,7 @@
   /* Debug and test hooks (used by tests/smoke.mjs). */
   WV.debug = {
     get state() { return s; }, get ui() { return ui; },
-    act, inspect, gather, build, watchWalk, committeeAgree,
+    act, inspect, gather, build, watchWalk, committeeAgree, openLab, collectSample, predict, doSurvey, openOptions, optionsAgree,
     newVillage: (name, scenarioId, salt) => { s = sim.generateVillage(name, salt == null ? 1 : salt, scenarioId); persist(); enterGame(); },
   };
 })(window);

@@ -70,7 +70,7 @@
     const builds = {};
     Object.keys(data.builds).forEach((id) => (builds[id] = 'site'));
 
-    return {
+    return migrate({
       v: data.saveVersion,
       name: clean, salt: s0, seed, scenarioId,
       population, households,
@@ -83,7 +83,35 @@
       inspected: [],
       flags: { committeeMet: false, walkWatched: false, briefingSeen: false, tipsOff: false },
       peopleWithWater: 0,
-    };
+    });
+  }
+
+  /* Site facts come from their OWN random stream, so adding them did not change the
+     population, names or round trip of any village generated before Level 2.     */
+  function siteFor(scenarioId, seed) {
+    const r = rng((seed ^ 0x9e3779b9) >>> 0); const spec = D().scenarios[scenarioId].site; const out = {};
+    Object.keys(spec).forEach((k) => {
+      const v = spec[k];
+      out[k] = Array.isArray(v) ? (Number.isInteger(v[0]) && Number.isInteger(v[1]) ? between(r, v) : Math.round((v[0] + r() * (v[1] - v[0])) * 10) / 10) : v;
+    });
+    return out;
+  }
+
+  /* Fill in anything a save from an earlier build is missing. Never removes data. */
+  function migrate(s) {
+    const data = D();
+    s.samples = s.samples || [];
+    s.results = s.results || {};
+    s.surveys = s.surveys || [];
+    s.site = s.site || siteFor(s.scenarioId, s.seed);
+    s.flags = { labOpened: false, optionsReviewed: false, ...s.flags };
+    s.people = s.people || {};
+    const used = Object.values(s.people).map((p) => p.name);
+    const spare = shuffle(data.namePool, rng(s.seed)).filter((n) => used.indexOf(n) < 0);
+    data.roles.forEach((role) => { if (!s.people[role.id]) { s.people[role.id] = { name: spare.shift() || 'Sam' }; } });
+    const scene = data.scenes[data.scenarios[s.scenarioId].scene];
+    scene.hotspots.filter((h) => h.kind === 'node').forEach((h) => { if (!s.nodes[h.id]) s.nodes[h.id] = { charges: h.charges }; });
+    return s;
   }
 
   /* ---- Derived numbers (for display; all [game]) ------------------------------------ */
@@ -102,10 +130,12 @@
   const sceneOf = (s) => D().scenes[D().scenarios[s.scenarioId].scene];
   const hotspot = (s, id) => sceneOf(s).hotspots.find((h) => h.id === id);
 
+  const visible = (s, h) => !!h && (!h.minLevel || s.level >= h.minLevel);
+
   /* ---- Actions ------------------------------------------------------------------------ */
   function inspect(s, id) {
     const h = hotspot(s, id);
-    if (!h || h.kind === 'node') return { ok: false, state: s };
+    if (!visible(s, h) || h.kind === 'node') return { ok: false, state: s };
     if (s.inspected.indexOf(id) >= 0) return { ok: true, state: s, first: false };
     const t = clone(s); t.inspected.push(id);
     return { ok: true, state: t, first: true };
@@ -152,6 +182,107 @@
     return t;
   }
 
+  /* ---- Level 2: investigate ---------------------------------------------------------------- */
+  const sampleDef = (s, id) => sceneOf(s).samples[id];
+  const surveyDef = (s, id) => sceneOf(s).surveys[id];
+  const inLevel2 = (s) => s.level >= 2;
+
+  function openLab(s) {
+    if (!inLevel2(s) || s.builds.lab !== 'built') return { ok: false, state: s, reason: 'The field lab opens in Level 2.' };
+    return { ok: true, state: s.flags.labOpened ? s : setFlag(s, 'labOpened') };
+  }
+  function collectSample(s, id) {
+    if (!inLevel2(s)) return { ok: false, state: s, reason: 'Sampling starts in Level 2.' };
+    if (!sampleDef(s, id)) return { ok: false, state: s, reason: 'There is no water to sample here.' };
+    if (s.samples.indexOf(id) >= 0) return { ok: false, state: s, reason: 'You already have a sample from here.' };
+    const t = clone(s); t.samples.push(id);
+    return { ok: true, state: t };
+  }
+  /* prediction: 'safe' | 'unsafe' | 'unsure' — the player's guess before the test. */
+  function runTest(s, id, prediction) {
+    if (s.samples.indexOf(id) < 0) return { ok: false, state: s, reason: 'Collect a sample first.' };
+    if (s.results[id]) return { ok: false, state: s, reason: 'This sample has been tested.' };
+    if (['safe', 'unsafe', 'unsure'].indexOf(prediction) < 0) return { ok: false, state: s, reason: 'Make a guess first.' };
+    const def = sampleDef(s, id); const t = clone(s);
+    t.results[id] = { prediction, clarity: def.clarity, germ: def.germ, salty: !!def.salty };
+    return { ok: true, state: t, result: t.results[id] };
+  }
+  function survey(s, id) {
+    if (!inLevel2(s)) return { ok: false, state: s, reason: 'Surveys start in Level 2.' };
+    if (!surveyDef(s, id)) return { ok: false, state: s, reason: 'Nothing to survey here.' };
+    if (s.surveys.indexOf(id) >= 0) return { ok: false, state: s, reason: 'Already surveyed.' };
+    const t = clone(s); t.surveys.push(id);
+    return { ok: true, state: t };
+  }
+  const readyForOptions = (s) => Object.keys(s.results).length >= 2 && s.surveys.length >= 2;
+  function reviewOptions(s) {
+    if (!readyForOptions(s)) return { ok: false, state: s, reason: 'Finish both tests and both surveys first.' };
+    return { ok: true, state: s.flags.optionsReviewed ? s : setFlag(s, 'optionsReviewed') };
+  }
+
+  /* Which site facts are known: surveys reveal some, lab tests reveal others. */
+  function knownFacts(s) {
+    const known = {};
+    s.surveys.forEach((id) => (surveyDef(s, id).reveals || []).forEach((k) => (known[k] = true)));
+    Object.keys(s.results).forEach((id) => (sampleDef(s, id).reveals || []).forEach((k) => (known[k] = true)));
+    if (Object.keys(s.results).length) known.surfaceTested = true;
+    return known;
+  }
+
+  /* ---- Technology options, judged only on what is known --------------------------------------
+     status: recommended · part (part of the recommended plan) · possible · complement ·
+             later · no · unknown (needs a survey or test)                                     */
+  function technologyOptions(s) {
+    const data = D(); const known = knownFacts(s); const f = s.site;
+    const daily = s.population * data.litresPerPersonGoal;
+    const roofShare = (f.bigRoofsM2 * f.rainfallMm * 0.8) / 365 / daily; // litres = m² × mm × runoff 0.8 [ref formula, game inputs]
+    const testedUnsafe = Object.values(s.results).some((r) => r.germ !== 'safe');
+    const judge = {
+      gravityFed: () => (f.springAbove && f.springHeadM >= 15 && f.springYearRound
+        ? ['recommended', `The spring sits about ${f.springHeadM} m above the homes and never runs dry, so water can flow down pipes with no pump.`]
+        : ['no', !f.springAbove ? 'There is no spring above the village for water to flow down from.' : 'The spring dries up for part of the year.']),
+      protectedSpring: () => (!f.springAbove ? ['no', 'There is no usable spring close to the village.']
+        : f.springDistanceKm <= 0.5 ? ['possible', 'The spring is close enough to protect and collect from directly.']
+          : ['part', `Protecting the spring is step one, but it is ${f.springDistanceKm} km away. Piping it down makes it a gravity-fed system.`]),
+      drilledWell: () => (!f.rigAccess ? ['no', 'A drilling rig cannot get up these steep, rocky tracks.']
+        : f.groundwaterSalty ? ['no', 'Test results show the groundwater here is salty.']
+          : ['recommended', `Fresh groundwater about ${f.groundwaterDepthM} m down, and a road the rig can use. A sealed pump keeps it protected.`]),
+      handDugWell: () => (f.groundwaterSalty ? ['no', 'Shallow groundwater here tested salty.']
+        : f.groundwaterDepthM > 15 ? ['no', `Groundwater is about ${f.groundwaterDepthM} m down, too deep to dig safely by hand.`]
+          : ['possible', 'Groundwater is shallow enough to dig to.']),
+      rainwater: () => (f.rainfallMm < 600 ? ['no', `Too little rain: about ${f.rainfallMm} mm a year.`]
+        : roofShare >= 0.5 ? ['recommended', `About ${f.rainfallMm} mm of rain a year on ${f.bigRoofsM2} m² of roofs could cover most daily needs, with covered tanks for the dry weeks.`]
+          : ['possible', `Plenty of rain, but the roofs here could only cover about ${Math.max(1, Math.round(roofShare * 100))}% of daily needs. A good extra for the school later.`]),
+      solarPiped: () => (f.groundwaterSalty ? ['no', 'The groundwater it would pump is salty.']
+        : ['later', `Suits bigger communities with a trained operator. Worth another look as ${s.name} grows.`]),
+      bioSand: () => (testedUnsafe ? ['complement', 'It cleans water at home but does not bring water closer. Helpful alongside, not instead.']
+        : ['no', 'Not needed when the water is already safe.']),
+      rehabilitation: () => ['no', 'There is no broken water system here to repair.'],
+    };
+    const cards = Object.keys(data.technologies).map((id) => {
+      const t = data.technologies[id];
+      const missing = (t.needs || []).filter((k) => !known[k]);
+      if (missing.length) return { id, name: t.name, short: t.short, status: 'unknown', reason: missing.indexOf('surfaceTested') >= 0 ? 'Needs a water test.' : 'Needs a survey.', missing };
+      const [status, reason] = judge[id]();
+      return { id, name: t.name, short: t.short, status, reason, playable: !!t.playable };
+    });
+    // Today's option, judged by the lab test of the collection point.
+    const src = s.results.source; const srcLabel = (hotspot(s, 'source') || {}).label || 'source';
+    cards.unshift(src
+      ? { id: 'statusQuo', name: `Keep using the ${srcLabel.toLowerCase()}`, short: 'No change.', status: 'no',
+        reason: `Lab test: ${data.results.germ[src.germ].label.toLowerCase()}. And it is a ${s.baseline.roundTripMin}-minute round trip.` }
+      : { id: 'statusQuo', name: `Keep using the ${srcLabel.toLowerCase()}`, short: 'No change.', status: 'unknown', reason: 'Needs a water test.', missing: ['sourceTested'] });
+    return cards;
+  }
+
+  /* ---- Walkers: who walks where, as the village changes ---------------------------------------- */
+  function walkerPlan(s, opts) {
+    const routes = sceneOf(s).routes; const after = !!(opts && opts.after) || (routes.collectAfter && s.builds[routes.collectAfter.whenBuilt] === 'built');
+    const plan = [{ id: after ? 'collectAfter' : 'collect', route: after ? routes.collectAfter : routes.collect }];
+    (routes.ambient || []).forEach((a) => plan.push({ id: a.id, route: a, extra: after ? 1 : 0 }));
+    return plan;
+  }
+
   /* ---- Objectives & levels -------------------------------------------------------------- */
   const levelDef = (s) => D().levels.find((l) => l.id === s.level);
   function objectives(s) {
@@ -180,13 +311,14 @@
     try { s = JSON.parse(text); } catch (e) { return null; }
     if (!s || s.v !== D().saveVersion || !D().scenarios[s.scenarioId] || !validName(s.name)) return null;
     Object.keys(s.builds || {}).forEach((id) => { if (s.builds[id] === 'building') s.builds[id] = 'built'; });
-    return s;
+    return migrate(s);
   }
 
   WV.sim = {
     clone, clamp, hash, rng, shuffle, cleanName, validName, suggestName,
-    generateVillage, metrics, sceneOf, hotspot,
+    generateVillage, siteFor, migrate, metrics, sceneOf, hotspot, visible,
     inspect, gather, canBuild, startBuild, finishBuild, setFlag,
+    openLab, collectSample, runTest, survey, readyForOptions, reviewOptions, knownFacts, technologyOptions, walkerPlan,
     levelDef, objectives, nextObjective, levelReady, completeLevel,
     serialize, deserialize,
   };

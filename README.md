@@ -13,9 +13,10 @@ python3 -m http.server 8000      # then open http://localhost:8000
 # or just open index.html in a browser
 ```
 
-- `index.html`: the **village game** (in development; Level 1 of 5 is playable).
+- `index.html`: the **village game** (in development; Levels 1–2 of 5 are playable).
 - `municipal.html`: the original municipal-utility prototype, kept unchanged and documented below.
 - `?scenario=highland|plateau|wetland` forces a landscape (for testing and teaching). Normally it is chosen for you.
+- `?dev=routes` opens the developer route editor: a coordinate grid, draggable route waypoints, hotspot bounds, walker highlights, an "after the water point is built" preview, and **Copy routes JSON** to paste back into `js/village/data.js`. Edits are not saved; nothing changes for players.
 
 Progress saves automatically in your browser (`localStorage`). Use **Menu → New village** or **Reset game** to start over.
 
@@ -23,16 +24,27 @@ Progress saves automatically in your browser (`localStorage`). Use **Menu → Ne
 
 ```bash
 node --test tests/                                   # model unit tests
-node --experimental-websocket tests/smoke.mjs        # full Level 1 playthrough in headless Chrome (needs Chrome installed)
+node --experimental-websocket tests/smoke.mjs        # Levels 1–2 in all scenarios, desktop/tablet/phone, in headless Chrome (needs Chrome)
 ```
+
+## Artwork
+
+| Scenario | Background |
+| --- | --- |
+| Highland Springs (gravity-fed) | `assets/images/village/highland-springs/bg-main.png` |
+| Red Rock Plateau (drilled well) | `assets/images/village/red-rock-plateau/bg-main.png` |
+| Wetland Crossroads (rainwater) | `assets/images/village/wetland-crossroads/bg-main.png` |
+
+All three are 1672×941 and drawn at their own aspect ratio. To replace one, keep the filename and size, or update `w`, `h`, `hotspots` and `routes` for that scene in `js/village/data.js` (use `?dev=routes`). The earlier `assets/environments/env-0*.png` panoramas are kept for the municipal prototype and future scenarios.
 
 ## Village game files
 
 | Path | Purpose |
 | --- | --- |
-| `js/village/data.js` | Scenarios, painted-scene hotspots and crops, technology registry, levels, characters, copy |
-| `js/village/sim.js` | Pure model: seeded generation, gathering, building, objectives, save/load |
-| `js/village/scene.js` | Painting + SVG overlays (cottages, construction states, jerry-can walkers) + accessible hotspot buttons |
+| `js/village/data.js` | Scenarios, site facts, painted-scene hotspots and walking routes, technology registry, levels, characters, copy |
+| `js/village/sim.js` | Pure model: seeded generation, gathering, building, lab tests, surveys, technology judgement, walker plan, objectives, save/load and migration |
+| `js/village/scene.js` | Painting + SVG overlays (construction states, path-following jerry-can walkers) + accessible hotspot buttons |
+| `js/village/dev.js` | Route editor, only active with `?dev=routes` |
 | `js/village/ui.js` | HTML templates for the HUD, checklist, panels and dialogs |
 | `js/village/audio.js` | One looping music track (`assets/audio/waterworks-ambient.mp3`) with saved mute and volume |
 | `js/village/app.js` | Controller: flow, events, persistence |

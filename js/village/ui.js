@@ -29,8 +29,10 @@
   /* Fill {village}, {households}, {committeePlace}… from the state. */
   function fill(text, s) {
     const sc = S().sceneOf(s); const label = (id) => (sc.hotspots.find((h) => h.id === id) || {}).label || '';
+    const water = sc.hotspots.find((h) => h.kind === 'water');
     const map = { village: s.name, households: fmt(s.households), population: fmt(s.population),
-      committeePlace: label('committee').toLowerCase(), sourcePlace: label('source').toLowerCase() };
+      committeePlace: label('committee').toLowerCase(), sourcePlace: label('source').toLowerCase(),
+      waterPlace: water ? water.label.toLowerCase() : '', engineer: s.people.engineer ? s.people.engineer.name : 'The engineer' };
     return String(text).replace(/\{(\w+)\}/g, (m, k) => (k in map ? esc(map[k]) : m));
   }
   U.fill = fill;
@@ -61,9 +63,9 @@
 
   U.objective = function (s) {
     const lvl = S().levelDef(s);
-    if (lvl.comingSoon) return `<span class="lbl">Up next</span><span class="txt">Level ${lvl.id}: ${esc(lvl.title)} arrives in the next build</span>`;
+    if (lvl.comingSoon) return `<span class="lbl">Up next</span><span class="txt">Level ${lvl.id}: ${esc(lvl.title)} arrives in the next build</span>${icon('chev-down')}`;
     const o = S().nextObjective(s);
-    return o ? `<span class="lbl">Objective</span><span class="txt">${esc(o.text)}</span>` : `<span class="lbl">Level complete</span><span class="txt">Ready for ${esc(lvl.next)}</span>`;
+    return (o ? `<span class="lbl">Objective</span><span class="txt">${esc(o.text)}</span>` : `<span class="lbl">Level complete</span><span class="txt">Ready for ${esc(lvl.next)}</span>`) + icon('chev-down');
   };
 
   U.stats = function (s, audioState) {
@@ -79,8 +81,8 @@
 
   U.checklist = function (s, open) {
     const lvl = S().levelDef(s);
-    const head = `<button type="button" class="cl-head" data-act="toggle-checklist" aria-expanded="${open}" aria-controls="clBody">
-        <span><span class="kicker">Level ${lvl.id} of ${D().levels.length}</span><b>${esc(lvl.title)}</b></span>${icon(open ? 'chev-up' : 'chev-down')}</button>`;
+    const head = `<div class="cl-head"><span><span class="kicker">Level ${lvl.id} of ${D().levels.length} · project checklist</span><b>${esc(lvl.title)}</b></span>
+        <button type="button" class="icon-btn" data-act="toggle-checklist" aria-label="Close checklist">${icon('x')}</button></div>`;
     let body;
     if (lvl.comingSoon) {
       body = `<p class="cl-note">${icon('flag')} <span><b>${esc(lvl.title)}</b> arrives in the next build. ${esc(s.name)} is saved, so you can keep exploring.</span></p>`;
@@ -115,16 +117,39 @@
     return `<svg viewBox="0 0 34 44" class="glass-svg" aria-hidden="true"><path d="M5 4h24l-3 36a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2z" fill="#fff" stroke="#1b1f23" stroke-width="1.5"/><path d="M6.2 12h21.6l-2.3 28a1 1 0 0 1-1 1H9.5a1 1 0 0 1-1-1z" fill="${col}"/></svg>`;
   }
 
+  /* Your eyes vs the lab: the same pair the source panel always had, now filled in by tests. */
+  function eyesVsLab(s, id, looks) {
+    const r = s.results[id]; const G = D().results.germ;
+    const lab = r ? `<span class="result ${G[r.germ].tone}">${icon(r.germ === 'safe' ? 'check' : 'warn')}${esc(G[r.germ].label)}</span>`
+      : `<span>${s.level >= 2 ? (s.samples.indexOf(id) >= 0 ? 'Sample waiting at the field lab' : 'Not tested yet') : s.builds.lab === 'built' ? 'Ready to test in Level 2' : 'Not tested. Germs are invisible.'}</span>`;
+    return `<div class="eyes-lab"><div>${glass(looks)}<b>Your eyes</b><span>${esc(looks)}</span></div>
+      <div class="lab-q">${icon('flask', 'ic-lg')}<b>The lab</b>${lab}</div></div>`;
+  }
+  function sampleBlock(s, id) {
+    if (s.level < 2 || !S().sceneOf(s).samples[id]) return '';
+    const has = s.samples.indexOf(id) >= 0; const tested = !!s.results[id];
+    if (tested) return `<p class="note">${icon('check')}<span>Tested at the field lab. ${esc(S().sceneOf(s).samples[id].clue)}</span></p>`;
+    if (has) return `<p class="note">${icon('flask')}<span>Sample collected. Test it at the field lab.</span></p><button type="button" class="btn primary block" data-act="open-lab">${icon('flask')} Open the field lab</button>`;
+    return `<button type="button" class="btn primary block" data-act="collect-sample" data-id="${id}">${icon('can')} Collect a water sample</button>`;
+  }
+
   U.sheet = function (s, id, ui) {
     const sc = S().sceneOf(s); const h = sc.hotspots.find((x) => x.id === id); const p = sc.places[id];
     if (!h || !p) return '';
-    const kicker = { source: 'Water collection point', committee: 'Village water committee', site: 'Construction site', place: 'Place' }[h.kind];
+    const kicker = { source: 'Water collection point', water: 'Water source', committee: 'Village water committee', site: 'Construction site', place: 'Place', survey: 'Survey site' }[h.kind];
     let extra = '';
-    if (h.kind === 'source') {
+    if (h.kind === 'water') {
+      extra = `<div class="sec"><h3 class="sec-t">Your eyes vs the lab</h3>${eyesVsLab(s, id, p.looks)}${sampleBlock(s, id)}</div>`;
+    } else if (h.kind === 'survey') {
+      const sv = sc.surveys[id]; const done = s.surveys.indexOf(id) >= 0; const busy = ui.surveying === id;
+      const facts = (sv.reveals || []).map((k) => `<li><span>${esc(D().facts[k].label)}</span><b>${done ? esc(D().facts[k].show(s.site[k])) : '?'}</b></li>`).join('');
+      extra = `<div class="sec"><h3 class="sec-t">${esc(sv.title)} with ${esc(s.people.engineer.name)}</h3>
+        ${done ? `<p class="note">${icon('check')}<span>${esc(sv.done)}</span></p>` : ''}
+        <ul class="factlist ${busy ? 'busy' : ''}">${facts}</ul>
+        ${done ? '' : `<button type="button" class="btn primary block" data-act="survey" data-id="${id}" ${busy ? 'aria-disabled="true"' : ''}>${icon('flag')} ${busy ? 'Surveying…' : esc(sv.title)}</button>`}</div>`;
+    } else if (h.kind === 'source') {
       const m = S().metrics(s); const b = s.baseline;
-      extra = `<div class="sec"><h3 class="sec-t">Your eyes vs the lab</h3>
-          <div class="eyes-lab"><div>${glass(p.looks)}<b>Your eyes</b><span>${esc(p.looks)}</span></div>
-          <div class="lab-q">${icon('flask', 'ic-lg')}<b>The lab</b><span>${s.builds.lab === 'built' ? 'Ready to test in Level 2' : 'Not tested. Germs are invisible.'}</span></div></div></div>
+      extra = `<div class="sec"><h3 class="sec-t">Your eyes vs the lab</h3>${eyesVsLab(s, id, p.looks)}${sampleBlock(s, id)}</div>
         <div class="sec"><h3 class="sec-t">A day of collecting water</h3>
           <dl class="facts"><div><dt>Round trip</dt><dd>${b.roundTripMin} min</dd></div><div><dt>Trips per household</dt><dd>${b.tripsPerDay} a day</dd></div>
           <div><dt>Water per person</dt><dd>≈ ${Math.round(m.litresPerPerson)} L a day</dd></div><div><dt>Time per household</dt><dd>≈ ${m.hoursPerHousehold.toFixed(1)} h a day</dd></div></dl>
@@ -137,7 +162,8 @@
     } else if (h.kind === 'site') {
       const b = D().builds[id]; const st = s.builds[id];
       if (st === 'built') {
-        extra = `<div class="sec built-card">${icon('check', 'ic-lg')}<div><b>${esc(b.name)} built</b><p>${esc(b.text)}</p></div></div>`;
+        extra = `<div class="sec built-card">${icon('check', 'ic-lg')}<div><b>${esc(b.name)} built</b><p>${esc(b.text)}</p></div></div>`
+          + (s.level >= 2 ? `<button type="button" class="btn primary block" data-act="open-lab">${icon('flask')} Open the field lab</button>` : '');
       } else if (st === 'building') {
         extra = `<div class="sec"><p class="note">${icon('hammer')}<span>${esc(s.people[b.builder].name)} and two neighbours are building the ${esc(b.name.toLowerCase())}…</span></p></div>`;
       } else {
@@ -180,8 +206,109 @@
       <div class="dlg-foot">${s.flags.committeeMet ? '<button type="button" class="btn" data-act="close-dialog">Close</button>' : `<button type="button" class="btn primary" data-act="committee-agree">${icon('check')} Agree to work together</button>`}</div>`;
   };
 
+  /* ---- Level 2: the field lab ------------------------------------------------------------ */
+  function petri(n, seed) {
+    const r = S().rng(seed); const dots = Array.from({ length: n }, () => {
+      const a = r() * Math.PI * 2, d = Math.sqrt(r()) * 15;
+      return `<circle cx="${(20 + Math.cos(a) * d).toFixed(1)}" cy="${(20 + Math.sin(a) * d).toFixed(1)}" r="${(1.4 + r() * 1.6).toFixed(1)}"/>`;
+    }).join('');
+    return `<svg viewBox="0 0 40 40" class="petri" aria-hidden="true"><circle cx="20" cy="20" r="18.5" class="dish"/><g class="colonies">${dots}</g></svg>`;
+  }
+  function tube(clarity) {
+    return `<svg viewBox="0 0 16 44" class="tube ${clarity}" aria-hidden="true"><path d="M3 2h10v36a5 5 0 0 1-10 0z" class="glass"/><path d="M4 10h8v28a4 4 0 0 1-8 0z" class="water"/></svg>`;
+  }
+  function feedback(r) {
+    const looksClear = r.clarity === 'clear'; const bad = r.germ !== 'safe';
+    if (r.prediction === 'unsure') return bad ? 'Good instinct. You can’t tell by looking, and the test found germs.' : 'Good instinct. You can’t tell by looking.';
+    if (r.prediction === 'safe' && bad) return looksClear ? 'Surprise! It looked clean, but the test found germs. Clear water isn’t always safe water.' : 'The test found germs. Cloudiness is one clue, but germs are invisible.';
+    if (r.prediction === 'unsafe' && bad) return looksClear ? 'Right, even though it looks perfectly clear. Only the test could prove it.' : 'Right. The cloudiness was a clue, and the test confirms germs.';
+    return 'The test agrees with what you saw.';
+  }
+  function sampleCard(s, id, ui) {
+    const sc = S().sceneOf(s); const h = sc.hotspots.find((x) => x.id === id); const def = sc.samples[id]; const p = sc.places[id];
+    const R = D().results; const r = s.results[id];
+    const head = `<h3>${esc(h.label)}</h3>`;
+    if (s.samples.indexOf(id) < 0) {
+      return `<li class="sample empty">${head}<p class="muted">No sample yet.</p><button type="button" class="btn" data-act="goto" data-id="${id}">${icon('can')} Collect at the ${esc(h.label.toLowerCase())}</button></li>`;
+    }
+    if (ui.testing === id) {
+      return `<li class="sample testing">${head}<div class="bench">${tube(def.clarity)}${petri(R.germ[def.germ].colonies, s.seed + id.length)}</div><p class="muted" role="status">Running the clarity and germ tests… <small>(the germ test normally incubates overnight)</small></p></li>`;
+    }
+    if (!r) {
+      return `<li class="sample">${head}<div class="bench look">${glass(p.looks)}<span><b>Looks:</b> ${esc(p.looks)}</span></div>
+        <p class="ask">Is it safe to drink? Make a guess, then run the tests.</p>
+        <div class="guess" role="group" aria-label="Your guess for the ${esc(h.label)}">
+          <button type="button" class="btn" data-act="predict" data-id="${id}" data-pred="safe">Looks safe</button>
+          <button type="button" class="btn" data-act="predict" data-id="${id}" data-pred="unsafe">Looks unsafe</button>
+          <button type="button" class="btn" data-act="predict" data-id="${id}" data-pred="unsure">Can’t tell</button></div></li>`;
+    }
+    const G = R.germ[r.germ];
+    return `<li class="sample done">${head}<div class="bench">${tube(r.clarity)}${petri(G.colonies, s.seed + id.length)}</div>
+      <dl class="results">
+        <div><dt>${icon('eye')} Your eyes</dt><dd>${esc(p.looks)}</dd></div>
+        <div><dt>Clarity test</dt><dd>${esc(R.clarity[r.clarity])}</dd></div>
+        <div><dt>${icon('flask')} Germ test</dt><dd><span class="result ${G.tone}">${icon(r.germ === 'safe' ? 'check' : 'warn')}${esc(G.label)}</span></dd></div>
+        ${r.salty ? `<div><dt>Salt strip</dt><dd><span class="result warn">${icon('warn')}Salty</span></dd></div>` : ''}
+      </dl>
+      <p class="verdict">${esc(feedback(r))}</p>
+      <details><summary>Learn more</summary><p>The germ test looks for bacteria that live in human and animal waste. If they are there, disease-causing germs may be too. Cloudiness (turbidity) can hide germs and protect them from treatment, but clear water can carry them as well. ${esc(def.clue)}</p><p class="muted">Results here are simplified game categories, not real measurements.</p></details></li>`;
+  }
+
+  U.lab = function (s, ui) {
+    const sc = S().sceneOf(s); const ids = Object.keys(sc.samples);
+    const known = S().knownFacts(s);
+    // Only what has been discovered so far: the site card fills in as you survey and test.
+    const keys = Object.keys(D().facts); const found = keys.filter((k) => known[k]);
+    const site = found.length
+      ? found.map((k) => `<li class="known"><span>${esc(D().facts[k].label)}</span><b>${esc(D().facts[k].show(s.site[k]))}</b></li>`).join('')
+      : `<li class="empty">Nothing surveyed yet. ${esc(s.people.engineer.name)} is waiting at the survey markers on the map.</li>`;
+    const ready = S().readyForOptions(s);
+    const left = []; const tests = Object.keys(s.results).length; if (tests < 2) left.push(`${2 - tests} test${2 - tests > 1 ? 's' : ''}`);
+    if (s.surveys.length < 2) left.push(`${2 - s.surveys.length} survey${2 - s.surveys.length > 1 ? 's' : ''}`);
+    return `<div class="dlg-head"><div><p class="kicker">Field lab · ${esc(s.name)}</p><h2 id="dlgTitle">Your eyes vs the lab</h2></div>${closeBtn()}</div>
+      <div class="dlg-body">
+        <ul class="samples">${ids.map((id) => sampleCard(s, id, ui)).join('')}</ul>
+        <section class="sitecard"><h3 class="sec-t">Site card · ${s.surveys.length}/2 surveys · ${found.length} of ${keys.length} facts</h3><ul>${site}</ul></section>
+      </div>
+      <div class="dlg-foot"><p class="muted foot-note">${ready ? (s.flags.optionsReviewed ? 'The experts have shared their recommendation.' : 'Everything is in. Time to hear from the experts.') : `Still to do: ${left.join(' and ')}.`}</p>
+        <button type="button" class="btn ${ready ? 'primary' : ''}" data-act="open-options">${icon('people')} Water options</button></div>`;
+  };
+
+  const STATUS = {
+    recommended: ['Recommended', 'ok', 'check'], part: ['Part of the plan', 'ok', 'check'], possible: ['Possible', 'neutral', 'dot'],
+    complement: ['Helps alongside', 'neutral', 'dot'], later: ['Later', 'neutral', 'dot'], unknown: ['Needs info', 'neutral', 'flask'], no: ['Not here', 'risk', 'x'],
+  };
+  const ORDER = ['recommended', 'part', 'possible', 'complement', 'later', 'unknown', 'no'];
+  U.options = function (s) {
+    const cards = S().technologyOptions(s); const ready = S().readyForOptions(s);
+    const quo = cards[0]; const rest = cards.slice(1).sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status));
+    const rec = rest.find((c) => c.status === 'recommended');
+    const card = (c) => { const st = STATUS[c.status]; return `<li class="opt ${c.status}"><div class="opt-top"><b>${esc(c.name)}</b><span class="chip ${st[1]}">${icon(st[2])}${st[0]}</span></div><p>${esc(c.reason)}</p>${c.status !== 'no' && c.short ? `<small class="muted">${esc(c.short)}</small>` : ''}</li>`; };
+    return `<div class="dlg-head"><div><p class="kicker">Water options · ${esc(s.name)}</p><h2 id="dlgTitle">What fits this place?</h2></div>${closeBtn()}</div>
+      <div class="dlg-body">
+        ${ready && rec ? `<div class="person-line">${portrait('engineer', 48)}<p><b>${esc(s.people.engineer.name)}</b>, water engineer: “For ${esc(s.name)}, we recommend a <b>${esc(rec.name.toLowerCase())}</b>. ${esc(rec.reason)}”</p></div>`
+          : `<div class="person-line">${portrait('engineer', 48)}<p><b>${esc(s.people.engineer.name)}</b>: “Every place has its own answer. Test the water and finish the surveys, and the options will sort themselves out.”</p></div>`}
+        <ul class="opts">${card(quo)}${rest.map(card).join('')}</ul>
+      </div>
+      <div class="dlg-foot"><button type="button" class="btn" data-act="open-lab">${icon('flask')} Back to the lab</button>
+        ${ready ? (s.flags.optionsReviewed ? '<button type="button" class="btn primary" data-act="close-dialog">Done</button>' : `<button type="button" class="btn primary" data-act="options-agree">${icon('check')} Take this to the committee</button>`) : ''}</div>`;
+  };
+
   U.levelComplete = function (s) {
     const lvl = S().levelDef(s); const m = S().metrics(s);
+    if (lvl.id === 2) {
+      const sc = S().sceneOf(s); const G = D().results.germ;
+      const rec = S().technologyOptions(s).find((c) => c.status === 'recommended');
+      const rows = Object.keys(s.results).map((id) => `<li><b>${esc(sc.hotspots.find((h) => h.id === id).label)}</b><span>Looks ${esc(sc.places[id].looks.toLowerCase())} · tested ${esc(G[s.results[id].germ].label.toLowerCase())}</span></li>`).join('');
+      return `${banner(s, 'celebrate', `<span class="big-can">${icon('flask')}</span>`)}
+        <div class="dlg-head"><div><p class="kicker">Level 2 complete</p><h2 id="dlgTitle">${esc(lvl.title)}</h2></div></div>
+        <div class="dlg-body">
+          <p class="hero-line">Clear water isn’t always safe water, and every place needs its own answer. For ${esc(s.name)}, the experts recommend a <b>${esc(rec ? rec.name.toLowerCase() : 'new water point')}</b>.</p>
+          <ul class="summary two">${rows}</ul>
+          <p class="muted">Next: <b>${esc(lvl.next)}</b>. The committee makes the final choice, then everyone helps build it.</p>
+        </div>
+        <div class="dlg-foot"><button type="button" class="btn primary" data-act="next-level">Continue ${icon('chev-right')}</button></div>`;
+    }
     return `${banner(s, 'celebrate', `<span class="big-can">${icon('can')}</span>`)}
       <div class="dlg-head"><div><p class="kicker">Level ${lvl.id} complete</p><h2 id="dlgTitle">${esc(lvl.title)}</h2></div></div>
       <div class="dlg-body">

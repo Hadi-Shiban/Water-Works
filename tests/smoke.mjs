@@ -1,6 +1,6 @@
-// Browser smoke test: plays Level 1 in every scenario with real DOM clicks in
-// headless Chrome, checks for console errors, save/continue, mobile layout,
-// music preferences and the legacy municipal page.
+// Browser smoke test: plays Levels 1 and 2 in every scenario with real DOM clicks
+// in headless Chrome, checks for console errors, save/continue, mobile layout,
+// uninterrupted music, music preferences and the legacy municipal page.
 //
 // Run:  node --experimental-websocket tests/smoke.mjs
 // Env:  CHROME=/path/to/chrome   SMOKE_OUT=/dir/for/screenshots
@@ -67,7 +67,7 @@ const click = (sel) => evaluate(`(() => { const el = document.querySelector(${JS
 const S = (expr) => evaluate(`(() => { const s = WV.debug.state; return ${expr}; })()`);
 
 // ---- play Level 1 in each scenario with real clicks ----------------------------
-async function playLevel1(scenario, vp) {
+async function playCampaign(scenario, vp) {
   console.log(`\n${scenario} @ ${vp[0]}x${vp[1]}`);
   await viewport(vp[0], vp[1], vp[0] < 600);
   await go(`${BASE}/index.html?scenario=${scenario}`);
@@ -82,8 +82,11 @@ async function playLevel1(scenario, vp) {
   check(await evaluate('WV.audio.state().available'), 'music file loads');
   await click('[data-act="begin"]'); await sleep(400);
   await shot(`${scenario}-2-map-${vp[0]}`);
-  check(await evaluate('document.querySelectorAll("#hotspots .hs").length >= 5 && document.querySelectorAll("#hotspots .node").length === 4'), 'hotspots and resource nodes render');
-  check(await evaluate(`(() => { const b = document.getElementById('mapbox').getBoundingClientRect(); const hs = [...document.querySelectorAll('#hotspots .hs .ring, #hotspots .node .node-chip')]; return hs.every((h) => { const r = h.getBoundingClientRect(); return r.width > 10 && r.left >= b.left - 1 && r.right <= b.right + 1 && r.top >= b.top - 1 && r.bottom <= b.bottom + 1; }); })()`), 'every hotspot sits inside the painting');
+  check(await evaluate('document.querySelectorAll("#hotspots .hs:not([hidden])").length >= 6 && document.querySelectorAll("#hotspots .node").length === 4'), 'hotspots and resource nodes render');
+  check(await evaluate('document.querySelectorAll("#hotspots .hs-survey[hidden]").length === 2'), 'Level 2 survey sites stay hidden in Level 1');
+  check(await evaluate('document.getElementById("checklist").hidden'), 'checklist stays out of the way until asked for');
+  check(await evaluate('WV.scene.walkerPositions().length >= 5 && WV.scene.walkerPositions().every((w) => /translate/.test(w.transform))'), 'villagers walk the painted routes');
+  check(await evaluate(`(() => { const b = document.getElementById('mapbox').getBoundingClientRect(); const hs = [...document.querySelectorAll('#hotspots .hs:not([hidden]) .ring, #hotspots .node .node-chip')]; return hs.every((h) => { const r = h.getBoundingClientRect(); return r.width > 10 && r.left >= b.left - 1 && r.right <= b.right + 1 && r.top >= b.top - 1 && r.bottom <= b.bottom + 1; }); })()`), 'every hotspot sits inside the painting');
 
   // explore: committee via the sheet, source, one more place
   await click('#hotspots [data-id="committee"]'); await sleep(250);
@@ -124,17 +127,66 @@ async function playLevel1(scenario, vp) {
   check(await S('s.level === 2 && s.completedLevels.includes(1)'), 'advanced to Level 2');
   if (vp[0] >= 1000) await shot(`${scenario}-6-after`);
 
+  // ---- Level 2: investigate the water --------------------------------------------
+  const music0 = await evaluate('WV.audio.state().position');
+  await click('#hotspots [data-id="lab"]'); await sleep(250);
+  await click('#sheet [data-act="open-lab"]'); await sleep(400);
+  check(await S('s.flags.labOpened') && await evaluate('document.getElementById("dlg").open && !!document.querySelector(".samples")'), 'field lab opens');
+  await click('[data-act="goto"]'); await sleep(400);
+  const samples = await S('Object.keys(WV.sim.sceneOf(s).samples)');
+  for (const id of samples) {
+    await click(`#hotspots [data-id="${id}"]`); await sleep(250);
+    if (await evaluate('!!document.querySelector(\'#sheet [data-act="collect-sample"]\')')) await click('#sheet [data-act="collect-sample"]');
+    await sleep(250);
+  }
+  check(await S('s.samples.length === 2'), 'collected two water samples');
+  await click('#hotspots [data-id="lab"]'); await sleep(250);
+  await click('#sheet [data-act="open-lab"]'); await sleep(400);
+  const clearUnsafe = await S('Object.entries(WV.sim.sceneOf(s).samples).find(([, v]) => v.clarity === "clear" && v.germ !== "safe")[0]');
+  for (const id of samples) {
+    await click(`[data-act="predict"][data-id="${id}"][data-pred="${id === clearUnsafe ? 'safe' : 'unsure'}"]`); await sleep(500);
+    if (vp[0] >= 1000 && id === samples[0]) await shot(`${scenario}-7-lab-testing`);
+    await sleep(2100);
+  }
+  check(await S('Object.keys(s.results).length === 2'), 'both samples tested');
+  check(await evaluate('document.querySelectorAll(".sample.done").length === 2'), 'lab shows both results');
+  check(await evaluate('/clear water isn.t always safe/i.test(document.querySelector(".dlg").textContent)'), 'guessing "safe" on clear-but-unsafe water gets the surprise');
+  if (vp[0] >= 1000) await shot(`${scenario}-8-lab-results`);
+  await click('[data-act="open-options"]'); await sleep(300);
+  check(await evaluate('document.querySelectorAll(".opt.unknown").length > 0'), 'options wait for surveys');
+  await click('[data-act="close-dialog"]'); await sleep(300);
+  check(await evaluate('document.querySelectorAll("#hotspots .hs-survey:not([hidden])").length === 2'), 'survey sites appear in Level 2');
+  for (const id of await S('Object.keys(WV.sim.sceneOf(s).surveys)')) {
+    await click(`#hotspots [data-id="${id}"]`); await sleep(250);
+    await click('#sheet [data-act="survey"]'); await sleep(1800);
+  }
+  check(await S('s.surveys.length === 2'), 'both surveys done');
+  if (vp[0] >= 1000) await shot(`${scenario}-9-survey`);
+  await click('#hotspots [data-id="lab"]'); await sleep(250);
+  await click('#sheet [data-act="open-lab"]'); await sleep(300);
+  await click('[data-act="open-options"]'); await sleep(300);
+  const primary = await S('WV.data.scenarios[s.scenarioId].primaryTech');
+  check(await evaluate(`!!document.querySelector('.opt.recommended') && document.querySelectorAll('.opt.recommended').length === 1 && /${primary === 'gravityFed' ? 'Gravity' : primary === 'drilledWell' ? 'Drilled' : 'Rainwater'}/.test(document.querySelector('.opt.recommended').textContent)`), `experts recommend the ${primary}`);
+  if (vp[0] >= 1000) await shot(`${scenario}-10-options`);
+  await click('[data-act="options-agree"]'); await sleep(1500);
+  check(await evaluate('document.getElementById("dlg").open && /Level 2 complete/.test(document.getElementById("dlg").textContent)'), 'Level 2 celebration opens');
+  if (vp[0] >= 1000) await shot(`${scenario}-11-level2`);
+  await click('[data-act="next-level"]'); await sleep(400);
+  check(await S('s.level === 3 && s.completedLevels.join() === "1,2"'), 'advanced to Level 3');
+  const music1 = await evaluate('WV.audio.state()');
+  check(music1.playing && music1.position > music0, `music kept playing through both levels (${music0.toFixed(1)}s → ${music1.position.toFixed(1)}s)`);
+
   // save → reload → continue
   await go(`${BASE}/index.html`);
   check(await evaluate('!document.getElementById("continueBtn").hidden'), 'Continue offered after reload');
   await click('#continueBtn'); await sleep(600);
-  check(await S(`s.level === 2 && s.builds.lab === 'built' && s.name === 'Smoke Ridge' && s.scenarioId === '${scenario}' && Object.values(s.nodes).every((n) => n.charges === 0)`), 'continue restores level, buildings, nodes and scenario');
+  check(await S(`s.level === 3 && s.builds.lab === 'built' && s.name === 'Smoke Ridge' && s.scenarioId === '${scenario}' && Object.keys(s.results).length === 2 && s.surveys.length === 2 && s.flags.optionsReviewed`), 'continue restores level, buildings, lab results and surveys');
   check(await evaluate('document.querySelector(".site").getAttribute("data-state") === "built"'), 'built station is drawn after continue');
 }
 
-for (const sc of ['highland', 'plateau', 'wetland']) await playLevel1(sc, [1440, 900]);
-await playLevel1('plateau', [390, 844]);
-await playLevel1('wetland', [1024, 768]);
+for (const sc of ['highland', 'plateau', 'wetland']) await playCampaign(sc, [1440, 900]);
+await playCampaign('plateau', [390, 844]);
+await playCampaign('wetland', [1024, 768]);
 
 // ---- music preferences persist and never duplicate -----------------------------
 console.log('\nmusic');
@@ -150,6 +202,25 @@ check(await evaluate('WV.audio.state().playing === true'), 'repeated start() kee
 
 // ---- keyboard: hotspots are tabbable buttons ------------------------------------
 check(await evaluate('[...document.querySelectorAll("#hotspots button")].every((b) => b.tabIndex === 0)'), 'all hotspots are keyboard focusable');
+
+// ---- developer route editor (off by default) ---------------------------------------
+console.log('\nroute editor');
+await viewport(1440, 900);
+await go(`${BASE}/index.html?scenario=highland`); await click('#continueBtn'); await sleep(500);
+check(await evaluate('!document.querySelector(".dev-panel") && !document.querySelector(".dev-layer")'), 'route editor is off in normal play');
+await go(`${BASE}/index.html?dev=routes`); await click('#continueBtn'); await sleep(800);
+check(await evaluate('!!document.querySelector(".dev-panel") && document.querySelectorAll(".dev-handle").length > 20 && !!document.querySelector(".dev-grid")'), 'dev=routes shows grid, waypoints and panel');
+const beforePt = await evaluate('JSON.stringify(WV.sim.sceneOf(WV.debug.state).routes.collect.points[5])');
+const hp = await evaluate(`(() => { const r = document.querySelector('.dev-handle[data-route="collect"][data-i="5"]').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()`);
+await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: hp[0], y: hp[1], button: 'left', clickCount: 1 });
+for (let i = 1; i <= 5; i++) await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: hp[0] + i * 8, y: hp[1] + i * 4, button: 'left', buttons: 1 });
+await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: hp[0] + 40, y: hp[1] + 20, button: 'left', clickCount: 1 });
+await sleep(200);
+const afterPt = await evaluate('JSON.stringify(WV.sim.sceneOf(WV.debug.state).routes.collect.points[5])');
+check(afterPt !== beforePt, `dragging waypoint 5 moves it (${beforePt} → ${afterPt})`);
+await click('[data-dev="copy"]'); await sleep(100);
+check(await evaluate(`document.querySelector('[data-dev="out"]').value.includes(${JSON.stringify(afterPt)})`), 'copied JSON contains the edited waypoint');
+await shot('dev-route-editor');
 
 // ---- legacy prototype ---------------------------------------------------------------
 console.log('\nmunicipal.html');

@@ -44,15 +44,71 @@ test('names are cleaned and validated', () => {
   assert.ok(sim.validName(sim.suggestName(sim.rng(3))));
 });
 
+const routesOf = (sc) => [['collect', sc.routes.collect], ['collectAfter', sc.routes.collectAfter], ...(sc.routes.ambient || []).map((a) => [a.id, a])].filter(([, r]) => r);
+
 test('every hotspot and route point lies inside its scene crop, away from the edges', () => {
   for (const [id, sc] of Object.entries(D.scenes)) {
     const c = sc.crop;
     const inside = (x, y) => x >= c.x + 3 && x <= c.x + c.w - 3 && y >= c.y + 3 && y <= c.y + c.h - 3;
     sc.hotspots.forEach((h) => assert.ok(inside(h.x, h.y), `${id}/${h.id} outside crop`));
-    sc.route.forEach(([x, y], i) => assert.ok(inside(x, y), `${id} route point ${i} outside crop`));
+    routesOf(sc).forEach(([rid, r]) => r.points.forEach(([x, y], i) => assert.ok(inside(x, y), `${id}/${rid} point ${i} outside crop`)));
     assert.ok(sc.hotspots.some((h) => h.id === 'committee') && sc.hotspots.some((h) => h.id === 'source') && sc.hotspots.some((h) => h.id === 'lab'), `${id} missing a required hotspot`);
     sc.hotspots.filter((h) => h.kind !== 'node').forEach((h) => assert.ok(sc.places[h.id], `${id}/${h.id} has no panel text`));
   }
+});
+
+test('the new art is used at its own aspect ratio', () => {
+  for (const [id, sc] of Object.entries(D.scenes)) {
+    assert.match(sc.image, /^assets\/images\/village\/[a-z-]+\/bg-main\.png$/, id);
+    assert.equal(sc.w / sc.h, 1672 / 941, `${id} declared size does not match the painting`);
+  }
+});
+
+test('routes are well formed and the collection route links the village to the water', () => {
+  const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  for (const [id, sc] of Object.entries(D.scenes)) {
+    for (const [rid, r] of routesOf(sc)) {
+      assert.ok(r.points.length >= 2 && r.speed > 0 && r.walkers >= 1 && r.spacing >= 0, `${id}/${rid} needs points, speed, walkers, spacing`);
+      assert.equal(r.mode, 'outAndBack', `${id}/${rid} mode`);
+      for (let i = 1; i < r.points.length; i++) assert.ok(dist(r.points[i], r.points[i - 1]) < 12, `${id}/${rid} has a long straight jump at point ${i}`);
+    }
+    const h = (hid) => { const x = sc.hotspots.find((y) => y.id === hid); return [x.x, x.y]; };
+    const c = sc.routes.collect.points;
+    assert.ok(dist(c[c.length - 1], h('source')) < 8, `${id}: collection route should end at the water source`);
+    assert.ok(dist(c[0], h('committee')) < 8, `${id}: collection route should start in the village centre`);
+    assert.ok(sc.routes.collect.cans && !sc.routes.ambient.some((a) => a.cans), `${id}: only collectors carry jerry cans`);
+  }
+});
+
+test('Phase 1 villages are unchanged by the Level 2 additions', () => {
+  // Captured from the Phase 1 commit (f8600ee) with the same names and salts.
+  const before = {
+    'Kesi Hill|42': { scenarioId: 'wetland', population: 173, households: 29, roundTripMin: 45, people: { chair: 'Lina', treasurer: 'Tomas', caretaker: 'Mara', officer: 'Ayo' } },
+    'Tolu Ridge|7': { scenarioId: 'plateau', population: 338, households: 56, roundTripMin: 76, people: { chair: 'Daniel', treasurer: 'Sela', caretaker: 'Kito', officer: 'Mei' } },
+    'Sefa Fields|123456': { scenarioId: 'wetland', population: 159, households: 27, roundTripMin: 29, people: { chair: 'Esi', treasurer: 'Kito', caretaker: 'Ines', officer: 'Kofi' } },
+  };
+  for (const [key, exp] of Object.entries(before)) {
+    const [name, salt] = key.split('|'); const v = village(name, +salt);
+    assert.equal(v.scenarioId, exp.scenarioId); assert.equal(v.population, exp.population);
+    assert.equal(v.households, exp.households); assert.equal(v.baseline.roundTripMin, exp.roundTripMin);
+    for (const [role, n] of Object.entries(exp.people)) assert.equal(v.people[role].name, n, `${key} ${role}`);
+    assert.ok(v.people.engineer.name && !Object.values(exp.people).includes(v.people.engineer.name), 'engineer gets a different name');
+  }
+});
+
+test('a save from Phase 1 loads, keeps its progress and gains the Level 2 fields', () => {
+  const v = village('Kesi Hill', 42);
+  const old = JSON.parse(JSON.stringify(v));
+  delete old.samples; delete old.results; delete old.surveys; delete old.site; delete old.people.engineer;
+  delete old.flags.labOpened; delete old.flags.optionsReviewed;
+  Object.assign(old, { level: 2, completedLevels: [1], builds: { lab: 'built' }, inspected: ['barn', 'source', 'committee'] });
+  const loaded = sim.deserialize(JSON.stringify(old));
+  assert.ok(loaded, 'old save loads');
+  assert.equal(loaded.level, 2); assert.equal(loaded.builds.lab, 'built');
+  assert.deepEqual(loaded.site, v.site, 'site facts regenerate deterministically');
+  assert.deepEqual(loaded.samples, []); assert.equal(loaded.flags.labOpened, false);
+  assert.equal(loaded.people.chair.name, 'Lina');
+  assert.ok(loaded.people.engineer.name && loaded.people.engineer.name !== loaded.people.officer.name);
 });
 
 test('each scenario names a primary technology that exists in the registry and is playable', () => {
@@ -132,7 +188,7 @@ test('objective progress text reflects the state', () => {
 
 test('save → load round trip is lossless, and a mid-construction save loads as built', () => {
   let s = village('Kesi Hill', 5, 'wetland');
-  s = play(s, (x) => sim.inspect(x, 'barn'));
+  s = play(s, (x) => sim.inspect(x, 'school'));
   s = play(s, (x) => sim.gather(x, 'stone2'));
   assert.deepEqual(sim.deserialize(sim.serialize(s)), s);
   const mid = { ...s, builds: { lab: 'building' } };
@@ -148,4 +204,108 @@ test('metrics are consistent with the baseline', () => {
   assert.ok(m.litresPerPerson > 5 && m.litresPerPerson < 30);
   assert.equal(m.hoursPerHousehold, (2 * s.baseline.roundTripMin) / 60);
   assert.equal(m.peopleWithWater, 0);
+});
+
+/* ---- Level 2: investigate the water --------------------------------------------------------- */
+function finishLevel1(id, salt = 9) {
+  let s = village('Sefa Fields', salt, id);
+  for (const h of ['source', 'committee', 'homes']) s = play(s, (x) => sim.inspect(x, h));
+  s = sim.setFlag(sim.setFlag(s, 'committeeMet'), 'walkWatched');
+  for (const n of D.scenes[D.scenarios[id].scene].hotspots.filter((h) => h.kind === 'node')) for (let i = 0; i < n.charges; i++) s = play(s, (x) => sim.gather(x, n.id));
+  s = play(s, (x) => sim.startBuild(x, 'lab')); s = play(s, (x) => sim.finishBuild(x, 'lab'));
+  return play(s, sim.completeLevel);
+}
+const statusOf = (s, id) => sim.technologyOptions(s).find((c) => c.id === id).status;
+
+test('Level 2 actions are locked during Level 1, and survey sites stay hidden', () => {
+  const s = village('Kesi Hill', 1, 'highland');
+  assert.equal(sim.collectSample(s, 'source').ok, false);
+  assert.equal(sim.survey(s, 'survey1').ok, false);
+  assert.equal(sim.openLab(s).ok, false);
+  assert.equal(sim.inspect(s, 'survey1').ok, false, 'survey sites are not visible yet');
+});
+
+test('the lab needs a sample and a guess, and records the guess with the result', () => {
+  let s = finishLevel1('highland');
+  assert.equal(sim.runTest(s, 'source', 'safe').ok, false, 'no sample yet');
+  s = play(s, (x) => sim.collectSample(x, 'source'));
+  assert.equal(sim.collectSample(s, 'source').ok, false, 'one sample per source');
+  assert.equal(sim.runTest(s, 'source', 'maybe').ok, false, 'needs a valid guess');
+  s = play(s, (x) => sim.runTest(x, 'source', 'safe'));
+  assert.deepEqual(s.results.source, { prediction: 'safe', clarity: 'clear', germ: 'unsafe', salty: false });
+  assert.equal(sim.runTest(s, 'source', 'safe').ok, false, 'tested once');
+});
+
+test('every scenario has a clear-looking water source that tests unsafe or risky', () => {
+  for (const sc of Object.values(D.scenes)) {
+    assert.ok(Object.values(sc.samples).some((x) => x.clarity === 'clear' && x.germ !== 'safe'));
+    assert.equal(Object.keys(sc.samples).length, 2);
+    assert.equal(Object.keys(sc.surveys).length, 2);
+    for (const id of [...Object.keys(sc.samples), ...Object.keys(sc.surveys)]) assert.ok(sc.hotspots.some((h) => h.id === id), `missing hotspot for ${id}`);
+  }
+});
+
+test('Level 2 can be completed in every scenario; the experts recommend exactly the primary technology', () => {
+  for (const id of SCENARIOS) {
+    let s = finishLevel1(id);
+    assert.equal(s.level, 2);
+    assert.equal(sim.nextObjective(s).id, 'openLab');
+    s = play(s, sim.openLab);
+    const sc = D.scenes[D.scenarios[id].scene];
+    for (const src of Object.keys(sc.samples)) s = play(s, (x) => sim.collectSample(x, src));
+    assert.equal(sim.reviewOptions(s).ok, false, 'needs tests and surveys first');
+    for (const src of Object.keys(sc.samples)) s = play(s, (x) => sim.runTest(x, src, 'unsure'));
+    for (const sv of Object.keys(sc.surveys)) s = play(s, (x) => sim.survey(x, sv));
+    assert.equal(sim.nextObjective(s).id, 'options');
+    const cards = sim.technologyOptions(s);
+    const rec = cards.filter((c) => c.status === 'recommended').map((c) => c.id);
+    assert.deepEqual(rec, [D.scenarios[id].primaryTech], `${id} recommends ${rec}`);
+    assert.ok(cards.filter((c) => c.status === 'no').length >= 4, `${id}: at least four options rejected`);
+    assert.ok(cards.every((c) => c.status !== 'unknown'), `${id}: everything is judged once tests and surveys are done`);
+    assert.ok(cards.every((c) => c.reason && c.reason.length > 10), `${id}: every option explains itself`);
+    s = play(s, sim.reviewOptions);
+    assert.equal(sim.levelReady(s), true);
+    s = play(s, sim.completeLevel);
+    assert.equal(s.level, 3);
+  }
+});
+
+test('the recommendation holds for 1,000 villages in each scenario', () => {
+  for (const id of SCENARIOS) {
+    for (let salt = 0; salt < 1000; salt++) {
+      const s = village('Amo Bend', salt, id);
+      const all = { ...s, level: 2, results: { source: { germ: 'unsafe' }, x: { germ: 'unsafe' } }, surveys: Object.keys(D.scenes[D.scenarios[id].scene].surveys) };
+      for (const [k, v] of Object.entries(D.scenes[D.scenarios[id].scene].samples)) all.results[k] = { prediction: 'unsure', clarity: v.clarity, germ: v.germ, salty: !!v.salty };
+      delete all.results.x;
+      const rec = sim.technologyOptions(all).filter((c) => c.status === 'recommended').map((c) => c.id);
+      assert.deepEqual(rec, [D.scenarios[id].primaryTech], `${id} salt ${salt}`);
+    }
+  }
+});
+
+test('lab tests change the experts’ judgement', () => {
+  let s = finishLevel1('wetland');
+  s = play(s, sim.openLab);
+  for (const sv of ['survey1', 'survey2']) s = play(s, (x) => sim.survey(x, sv));
+  assert.equal(statusOf(s, 'statusQuo'), 'unknown', 'today’s source needs a test before it can be judged');
+  assert.equal(statusOf(s, 'handDugWell'), 'unknown', 'well options wait for the salt test');
+  assert.equal(statusOf(s, 'bioSand'), 'unknown');
+  s = play(s, (x) => sim.collectSample(x, 'well'));
+  s = play(s, (x) => sim.runTest(x, 'well', 'safe'));
+  assert.equal(statusOf(s, 'handDugWell'), 'no', 'the salt test rules out a hand-dug well');
+  assert.match(sim.technologyOptions(s).find((c) => c.id === 'drilledWell').reason, /salty/);
+  s = play(s, (x) => sim.collectSample(x, 'source'));
+  s = play(s, (x) => sim.runTest(x, 'source', 'unsafe'));
+  assert.equal(statusOf(s, 'statusQuo'), 'no');
+  assert.match(sim.technologyOptions(s).find((c) => c.id === 'statusQuo').reason, /Lab test: unsafe/);
+});
+
+test('the walker plan grows from collection trips to closer trips plus village life', () => {
+  const s = village('Kesi Hill', 1, 'highland');
+  const before = sim.walkerPlan(s); const after = sim.walkerPlan({ ...s, builds: { ...s.builds, waterPoint: 'built' } });
+  assert.equal(before[0].id, 'collect'); assert.equal(after[0].id, 'collectAfter');
+  const len = (r) => r.points.slice(1).reduce((t, p, i) => t + Math.hypot(p[0] - r.points[i][0], p[1] - r.points[i][1]), 0);
+  assert.ok(len(after[0].route) < len(before[0].route) / 2, 'the trip gets much shorter');
+  assert.ok(after[0].route.walkers <= before[0].route.walkers, 'fewer long collection trips');
+  assert.ok(after.slice(1).every((p) => p.extra === 1), 'more people out and about in the village');
 });

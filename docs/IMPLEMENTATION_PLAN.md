@@ -31,6 +31,10 @@ This plan builds on [`WATERWORKS_VILLAGE_REDESIGN.md`](WATERWORKS_VILLAGE_REDESI
 
 No conflict blocks Phase 1.
 
+## 3a. Update: new illustrated village maps (integrated)
+
+The three storybook backgrounds are now the game maps (`assets/images/village/<scenario>/bg-main.png`), shown uncropped at their own aspect ratio. Hotspots, resource nodes, the station site and every walking route were re-placed against the painted roads, steps, bridges and boardwalks, using zoomed coordinate-grid renders and the `?dev=routes` editor. The section below describes the earlier paintings and is kept for history.
+
 ## 3. Does the painted-overlay approach fit the current art?
 
 **It works technically.** One SVG with `viewBox` set to a crop of the painting, the painting as an `<image>` inside it, and overlays drawn in the same coordinates. Hotspots stay aligned at any screen size by construction.
@@ -101,6 +105,15 @@ Acceptance tests:
 10. `municipal.html` still loads with no console errors. *(smoke)*
 
 ### Phase 2: Laboratory and investigation (Level 2)
+**Status: implemented, awaiting review.** Covered by `tests/village.test.mjs` (25 unit tests, including the suitability check over 1,000 seeds per scenario) and `tests/smoke.mjs` (191 browser checks).
+
+Built as planned, with these choices:
+- A guess comes before every test ("Looks safe / Looks unsafe / Can't tell"). The feedback names the clear-but-unsafe surprise.
+- The germ test shows a ~2 s incubation animation instead of a real overnight wait (the master prompt asks for no artificial waiting).
+- Two samples and two surveys per scenario. The site card shows only discovered facts.
+- The options board judges all 8 technologies, plus "keep using today's source", from known facts only. Exactly one is recommended: the scenario's primary technology.
+- Level 1 is unchanged. A test pins villages generated in Phase 1 to identical names, populations and round trips, and old saves migrate.
+
 - Lab dialog: Look / Clarity / Germ / (Salt in the wetland).
 - Three columns, Source → Water point → Home. The Home column unlocks in Level 4.
 - Surveys fill the Site card. Technology cards show "Needs survey" until their facts are known.

@@ -97,13 +97,21 @@
     </g>
 
     <g id="art-walker">
-      <ellipse cx="0" cy="0" rx="6.5" ry="2" fill="#1d1408" opacity=".32"/>
-      <path class="legs" d="M-2 -8 L-3.2 0 M2 -8 L3.2 0" stroke="var(--skin)" stroke-width="2.1" stroke-linecap="round"/>
-      <path d="M-5.2 -7.5 Q-5.6 -18 0 -19.2 Q5.6 -18 5.2 -7.5 Z" fill="var(--tunic)"/>
-      <circle cx="0" cy="-22.4" r="3.5" fill="var(--skin)"/>
-      <path d="M-3.6 -23.4 q3.6 -4.4 7.2 0 q-3.6 -1.4 -7.2 0" fill="var(--hair)"/>
+      <g id="art-person">
+        <ellipse cx="0" cy="0" rx="6.5" ry="2" fill="#1d1408" opacity=".34"/>
+        <path class="legs" d="M-2 -8 L-3.2 0 M2 -8 L3.2 0" stroke="var(--skin)" stroke-width="2.1" stroke-linecap="round"/>
+        <path d="M-5.2 -7.5 Q-5.6 -18 0 -19.2 Q5.6 -18 5.2 -7.5 Z" fill="var(--tunic)" stroke="#2a1d10" stroke-width=".7" stroke-opacity=".55"/>
+        <circle cx="0" cy="-22.4" r="3.5" fill="var(--skin)" stroke="#2a1d10" stroke-width=".6" stroke-opacity=".5"/>
+        <path d="M-3.6 -23.4 q3.6 -4.4 7.2 0 q-3.6 -1.4 -7.2 0" fill="var(--hair)"/>
+      </g>
+      <use href="#art-person"/>
       <path d="M4.6 -14 L7.4 -9" stroke="var(--skin)" stroke-width="1.8" stroke-linecap="round"/>
       <use href="#art-can" transform="translate(9 -2) scale(.8)"/>
+    </g>
+
+    <g id="art-walker-free">
+      <use href="#art-person"/>
+      <path d="M4.4 -14 L6 -8.5 M-4.4 -14 L-6 -8.5" stroke="var(--skin)" stroke-width="1.7" stroke-linecap="round"/>
     </g>
 
     <g id="art-worker">
@@ -153,18 +161,45 @@
         </g>
       </g>`;
     }).join('');
-    const pts = scene.route.map(([x, y]) => P(x, y).map(f1).join(' '));
-    const routeD = 'M' + pts.join(' L');
-    const walkerEls = [0, 1, 2].map((i) => `<g class="walker" data-w="${i}"><use href="#art-walker" style="${look(i * 2 + 1)}"/></g>`).join('');
     return `<svg class="scene" viewBox="${f1(c.x)} ${f1(c.y)} ${f1(c.w)} ${f1(c.h)}" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
       ${DEFS}
       <image href="${scene.image}" x="0" y="0" width="${scene.w}" height="${scene.h}" preserveAspectRatio="none"/>
-      <path class="route" d="${routeD}" stroke-width="${f1(4 * k)}"/>
-      <path class="route-lit" d="${routeD}" stroke-width="${f1(6 * k)}"/>
+      <g class="routes">${routesMarkup()}</g>
       <g class="cottages">${cottages}</g>
       <g class="sites">${sites}</g>
-      <g class="walkers">${walkerEls}</g>
+      <g class="walkers"></g>
     </svg>`;
+  }
+
+  /* ---- Routes: smooth curves through the waypoints painted roads suggest --------------------
+     Catmull-Rom through every waypoint (so the walk passes exactly where the data says),
+     converted to cubic Béziers for SVG.                                                    */
+  function smoothPath(points) {
+    const p = points.map(([x, y]) => P(x, y));
+    if (p.length < 2) return '';
+    let d = `M${f1(p[0][0])} ${f1(p[0][1])}`;
+    for (let i = 0; i < p.length - 1; i++) {
+      const p0 = p[i - 1] || p[i], p1 = p[i], p2 = p[i + 1], p3 = p[i + 2] || p2;
+      const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+      const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+      d += ` C${f1(c1[0])} ${f1(c1[1])} ${f1(c2[0])} ${f1(c2[1])} ${f1(p2[0])} ${f1(p2[1])}`;
+    }
+    return d;
+  }
+  function allRoutes() {
+    const r = scene.routes; const list = [];
+    if (r.collect) list.push(['collect', r.collect]);
+    if (r.collectAfter) list.push(['collectAfter', r.collectAfter]);
+    (r.ambient || []).forEach((a) => list.push([a.id, a]));
+    return list;
+  }
+  function routesMarkup() {
+    const k = scene.structureScale;
+    return allRoutes().map(([id, rt]) => {
+      const d = smoothPath(rt.points);
+      const shown = rt.lit ? `<path class="route" d="${d}" stroke-width="${f1(4 * k)}"/><path class="route-lit" d="${d}" stroke-width="${f1(6 * k)}"/>` : '';
+      return `<g class="rt" data-route="${id}"><path class="rt-path" d="${d}"/>${shown}</g>`;
+    }).join('');
   }
 
   const NODE_ICON = {
@@ -194,18 +229,15 @@
     host.innerHTML = `<div class="mapbox" id="mapbox">${svgMarkup(s)}<div class="hotspots" id="hotspots">${hotspotMarkup(s)}</div><div class="fx" id="fx" aria-hidden="true"></div></div>`;
     // Absolute URL: a relative url() inside a custom property would resolve against css/.
     host.style.setProperty('--backdrop', `url('${new URL(scene.image, document.baseURI).href}')`);
+    const oldRo = els.ro;
     els = { host, box: host.querySelector('#mapbox'), svg: host.querySelector('svg'), hs: host.querySelector('#hotspots'), fx: host.querySelector('#fx') };
-    const pts = scene.route.map(([x, y]) => P(x, y));
-    const seg = []; let total = 0;
-    for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); seg.push(d); total += d; }
-    route = { pts, seg, total };
-    walkers = [...els.svg.querySelectorAll('.walker')].map((el, i) => ({ el, phase: i / 3 }));
-    if (els.ro) els.ro.disconnect();
+    planKey = ''; walkers = [];
+    if (oldRo) oldRo.disconnect();
     const refit = () => fit(false);
     els.ro = root.ResizeObserver ? new ResizeObserver(refit) : null;
     if (els.ro) els.ro.observe(host); else root.addEventListener('resize', refit);
     fit(true);
-    startWalkers();
+    mountHooks.forEach((fn) => fn(api));
   }
 
   /* Fill the screen when the aspect ratios are close (cover), letterbox when they
@@ -216,8 +248,12 @@
     const contain = Math.min(vw / crop.w, vh / crop.h), cover = Math.max(vw / crop.w, vh / crop.h);
     const narrow = vw / vh < 1.05;
     const k = narrow ? vh / crop.h : cover / contain <= 1.12 ? cover : contain;
-    els.box.style.width = Math.round(crop.w * k) + 'px';
-    els.box.style.height = Math.round(crop.h * k) + 'px';
+    const w = Math.round(crop.w * k), h = Math.round(crop.h * k);
+    els.box.style.width = w + 'px';
+    els.box.style.height = h + 'px';
+    // Centre the painting, so any cropping in cover mode is shared equally by both sides.
+    els.box.style.left = narrow ? '0px' : Math.round((vw - w) / 2) + 'px';
+    els.box.style.top = Math.round((vh - h) / 2) + 'px';
     host.classList.toggle('pan', narrow);
     if (narrow && first === true) {
       const [fx] = V(scene.focus.x, scene.focus.y);
@@ -225,34 +261,55 @@
     }
   }
 
-  /* ---- Walkers: families carrying jerry cans to the source and back -------------------- */
-  function pointAt(dist) {
-    let d = Math.max(0, Math.min(route.total, dist));
-    for (let i = 0; i < route.seg.length; i++) {
-      if (d <= route.seg[i] || i === route.seg.length - 1) {
-        const t = route.seg[i] ? d / route.seg[i] : 0; const a = route.pts[i], b = route.pts[i + 1];
-        return { x: a[0] + (b[0] - a[0]) * t, y: a[1] + (b[1] - a[1]) * t, dx: b[0] - a[0] };
+  /* ---- Walkers ------------------------------------------------------------------------------
+     Each walker follows its route's SVG path at a constant speed (painting px per second),
+     out to the end and back again, so it never jumps. Its offset along the path comes from
+     the route's spacing, so walkers on one route are spread out rather than bunched.   */
+  function buildWalkers(plan) {
+    const layer = els.svg.querySelector('.walkers'); layer.innerHTML = '';
+    walkers = [];
+    let n = 0;
+    plan.forEach((p) => {
+      const g = els.svg.querySelector(`.rt[data-route="${p.id}"]`); if (!g) return;
+      const path = g.querySelector('.rt-path'); const len = path.getTotalLength(); if (!len) return;
+      const count = (p.route.walkers || 1) + (p.extra || 0);
+      const spacing = p.route.spacing || len / p.route.speed / count; // default: evenly spread
+      for (let i = 0; i < count; i++) {
+        const el = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        el.setAttribute('class', 'walker' + (p.route.cans ? ' carrying' : ''));
+        el.dataset.route = p.id;
+        el.innerHTML = `<use href="#${p.route.cans ? 'art-walker' : 'art-walker-free'}" style="${look(n * 2 + 1)}"/>`;
+        layer.appendChild(el);
+        walkers.push({ el, path, len, speed: p.route.speed, offset: i * spacing * p.route.speed + (n * 37) % 23, index: i, count, flip: 1, phase: n * 1.7 });
+        n++;
       }
-      d -= route.seg[i];
-    }
-    return { x: route.pts[0][0], y: route.pts[0][1], dx: 1 };
+    });
+    els.svg.querySelectorAll('.rt').forEach((g) => g.classList.toggle('active', plan.some((p) => p.id === g.dataset.route)));
+    startWalkers();
   }
-  function placeWalker(w, u, time) {
-    const out = u < 0.5; const along = out ? u * 2 : (1 - u) * 2; // 0 at the village, 1 at the source
-    const p = pointAt(along * route.total);
-    const ws = scene.walkerScale; const sc = ws[0] + (ws[1] - ws[0]) * along;
-    const dir = (out ? p.dx : -p.dx) >= 0 ? 1 : -1;
-    const bob = reduced ? 0 : Math.abs(Math.sin(time / 170 + w.phase * 9)) * -1.4 * sc;
-    w.el.setAttribute('transform', `translate(${f1(p.x)} ${f1(p.y + bob)}) scale(${f1(sc * dir * 100) / 100} ${f1(sc * 100) / 100})`);
+  function placeWalker(w, time) {
+    let pos, dir;
+    if (reduced) { pos = ((w.index + 0.5) / w.count) * w.len; dir = 1; } else {
+      const u = ((time / 1000) * w.speed + w.offset) % (2 * w.len);
+      if (u <= w.len) { pos = u; dir = 1; } else { pos = 2 * w.len - u; dir = -1; }
+    }
+    const p = w.path.getPointAtLength(pos);
+    const q = w.path.getPointAtLength(Math.max(0, Math.min(w.len, pos + dir * 4)));
+    const dx = (q.x - p.x) * dir;
+    if (Math.abs(q.x - p.x) > 0.6) w.flip = (q.x - p.x) >= 0 ? 1 : -1; // keep facing on near-vertical stretches
+    const ws = scene.walkerScale; const sc = ws[0] + (ws[1] - ws[0]) * (p.y / scene.h);
+    const bob = reduced ? 0 : Math.abs(Math.sin(time / 165 + w.phase)) * -1.3 * sc;
+    w.el.setAttribute('transform', `translate(${f1(p.x)} ${f1(p.y + bob)}) scale(${f1(sc * w.flip * 100) / 100} ${f1(sc * 100) / 100})`);
+    return dx;
   }
   function tick(time) {
-    const period = 26000; // one full round trip of a walker, in ms (animation only)
-    walkers.forEach((w) => placeWalker(w, ((time / period) + w.phase) % 1, time));
+    walkers.forEach((w) => placeWalker(w, time));
     raf = root.requestAnimationFrame(tick);
   }
   function startWalkers() {
     stopWalkers();
-    if (reduced) { walkers.forEach((w, i) => placeWalker(w, [0.12, 0.3, 0.68][i] || 0.2, 0)); return; }
+    if (!walkers.length) return;
+    if (reduced) { walkers.forEach((w) => placeWalker(w, 0)); return; }
     raf = root.requestAnimationFrame(tick);
   }
   function stopWalkers() { if (raf) root.cancelAnimationFrame(raf); raf = 0; }
@@ -262,11 +319,17 @@
   /* ---- Update -------------------------------------------------------------------------------- */
   function update(s, ui) {
     if (!els.svg) return;
+    lastState = s; lastUi = ui;
+    const plan = WV.sim.walkerPlan(s, { after: previewAfter });
+    const key = plan.map((p) => p.id + ':' + ((p.route.walkers || 1) + (p.extra || 0))).join('|');
+    if (key !== planKey) { planKey = key; buildWalkers(plan); }
     els.svg.querySelectorAll('.site').forEach((g) => g.setAttribute('data-state', s.builds[g.dataset.site] || 'site'));
     els.svg.classList.toggle('watching', !!ui.watching);
     const targets = ui.targets || [];
     els.hs.querySelectorAll('.hs').forEach((b) => {
       const id = b.dataset.id; const h = scene.hotspots.find((x) => x.id === id);
+      b.hidden = !WV.sim.visible(s, h);
+      b.classList.toggle('done', (h.kind === 'survey' && s.surveys.indexOf(id) >= 0) || ((h.kind === 'source' || h.kind === 'water') && !!s.results[id]));
       const seen = s.inspected.indexOf(id) >= 0;
       b.classList.toggle('seen', seen);
       b.classList.toggle('target', targets.indexOf(id) >= 0);
@@ -313,5 +376,20 @@
     host.scrollTo({ left: Math.max(0, (x / 100) * els.box.clientWidth - host.clientWidth / 2), behavior: reduced ? 'auto' : 'smooth' });
   }
 
-  WV.scene = { mount, update, fit, floatText, celebrate, focusHotspot, scrollToHotspot, setReducedMotion, stopWalkers };
+  /* ---- Developer hooks (used by dev.js; inert in normal play) ---------------------------- */
+  let planKey = ''; let previewAfter = false; let lastState = null; let lastUi = {};
+  const mountHooks = [];
+  function rebuildRoutes() {
+    if (!els.svg) return;
+    els.svg.querySelector('.routes').innerHTML = routesMarkup();
+    planKey = ''; if (lastState) update(lastState, lastUi);
+  }
+  function setPreviewAfter(on) { previewAfter = !!on; planKey = ''; if (lastState) update(lastState, lastUi); }
+  const api = {
+    mount, update, fit, floatText, celebrate, focusHotspot, scrollToHotspot, setReducedMotion, stopWalkers,
+    onMount: (fn) => mountHooks.push(fn), rebuildRoutes, setPreviewAfter, smoothPath,
+    get scene() { return scene; }, get svg() { return els.svg; }, get box() { return els.box; },
+    walkerPositions: () => walkers.map((w) => ({ route: w.el.dataset.route, transform: w.el.getAttribute('transform') })),
+  };
+  WV.scene = api;
 })(window);
