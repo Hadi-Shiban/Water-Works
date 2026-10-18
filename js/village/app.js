@@ -51,6 +51,13 @@
         return sc.hotspots.filter((h) => h.kind === 'node' && need[h.res] && st.nodes[h.id].charges > 0).map((h) => h.id);
       }
       case 'lab': return st.flags.committeeMet ? ['lab'] : ['committee'];
+      case 'meeting': case 'choose': return ['committee'];
+      case 'site': case 'build': case 'activate': return ['waterPoint'];
+      case 'materials': {
+        const need = D.technologies[st.tech].cost;
+        const short = { wood: st.resources.wood < need.wood, stone: st.resources.stone < need.stone };
+        return sc.hotspots.filter((h) => h.kind === 'node' && short[h.res] && st.nodes[h.id].charges > 0).map((h) => h.id);
+      }
       case 'sample': return ['source'];
       case 'bring': case 'clear': case 'dirty': case 'microscope': case 'filter': case 'notes': case 'options': return ['lab'];
       case 'surveys': return Object.keys(sc.surveys).filter((id) => st.surveys.indexOf(id) < 0);
@@ -197,13 +204,13 @@
     const r = sim.startBuild(s, id);
     if (!r.ok) { toast('Not yet', U.esc(r.reason)); announce(r.reason); return; }
     commit(r.state);
-    const b = D.builds[id];
+    const b = sim.buildDef(s, id);
     announce(`${s.people[b.builder].name} starts building the ${b.name.toLowerCase()}.`);
     setTimeout(() => {
       const f = sim.finishBuild(s, id); if (!f.ok) return;
       scene.celebrate(id);
       commit(f.state);
-      toast(`${b.name} built`, 'The partner team can now test water samples here.', 'good');
+      toast(`${b.name} built`, id === 'lab' ? 'The partner team can now test water samples here.' : 'Open the site to bring the system to life.', 'good');
       announce(`${b.name} built.`);
     }, prefs.reducedMotion ? 300 : b.buildMs);
   }
@@ -214,7 +221,7 @@
     setTimeout(() => openDialog(U.levelComplete(s), 'dlg-wide modal-strict', () => {
       const r = sim.completeLevel(s); ui.levelShown = false;
       if (r.ok) { ui.selected = null; commit(r.state); ui.checklistOpen = true; render(); }
-    }), prefs.reducedMotion ? 200 : 1100);
+    }), prefs.reducedMotion ? 200 : s.level === 3 ? 3800 : 1100); // Level 3: let the village change sink in first
   }
 
   function openMenu() { openDialog(U.menu(s, audio.state(), prefs), 'dlg-narrow'); }
@@ -283,6 +290,42 @@
     const id = Object.keys(sim.sceneOf(s).surveys).find((x) => s.surveys.indexOf(x) < 0); if (!id) return;
     closeDialog(); setTimeout(() => inspect(id), 0);
   }
+  /* ---- Level 3: plan, choose, activate ----------------------------------------------------- */
+  function planMeeting() {
+    const r = sim.planMeeting(s); if (!r.ok) { toast('Not yet', U.esc(r.reason)); return; }
+    if (r.state !== s) commit(r.state);
+    if (s.tech) { openTech(); return; }
+    openDialog(U.planning(s), 'dlg-wide');
+  }
+  function openTech(msg) { refreshDialog(U.techCards(s, msg), 'dlg-wide dlg-tech'); }
+  function chooseTech(id) {
+    if (s.tech === id) { closeDialog(); return; }
+    const r = sim.chooseTech(s, id);
+    if (!r.ok) { openTech(r.reason); announce(r.reason); return; }
+    closeDialog(); commit(r.state);
+    const t = D.technologies[s.tech];
+    toast(`The committee chose: ${t.name}`, `The ${t.siteName.toLowerCase()} is marked on the map.`, 'good');
+    announce(`${t.name} chosen. The construction site is marked on the map.`);
+    setTimeout(() => scene.focusHotspot('waterPoint'), 50);
+  }
+  function activate() {
+    if (ui.activating) return;
+    const next = sim.nextActivation(s); if (!next) return;
+    if (next.reps && (ui.pumpCount || 0) < next.reps - 1) {
+      ui.pumpCount = (ui.pumpCount || 0) + 1; scene.systemFx('pump'); render();
+      announce(`Stroke ${ui.pumpCount} of ${next.reps}.`); return;
+    }
+    ui.activating = true; if (next.effect) scene.systemFx(next.effect); render();
+    setTimeout(() => {
+      ui.activating = false; ui.pumpCount = 0;
+      const r = sim.activate(s, next.id);
+      if (!r.ok) { toast('Not yet', U.esc(r.reason)); render(); return; }
+      commit(r.state);
+      announce(next.done);
+      if (r.done) { scene.celebrate('waterPoint'); toast('Water is flowing!', `${s.peopleWithWater} people now have safe water close to home.`, 'good'); }
+    }, prefs.reducedMotion ? 250 : next.effect === 'flow' ? 2900 : next.effect === 'rain' ? 2200 : 1100);
+  }
+
   function collectSample(id) {
     const r = sim.collectSample(s, id); if (!r.ok) { toast('Not now', U.esc(r.reason)); return; }
     scene.floatText(id, '+1 water sample');
@@ -339,6 +382,10 @@
       case 'open-lab': openLab(); break;
       case 'collect-sample': collectSample(id); break;
       case 'lab-item': labItem(id); break;
+      case 'plan-meeting': planMeeting(); break;
+      case 'open-tech': openTech(); break;
+      case 'choose-tech': chooseTech(id); break;
+      case 'activate': activate(); break;
       case 'lab-guess': labGuess(el.dataset.pred); break;
       case 'lab-test': labTest(); break;
       case 'lab-step': labStep(id); break;
@@ -393,7 +440,7 @@
   /* Debug and test hooks (used by tests/smoke.mjs). */
   WV.debug = {
     get state() { return s; }, get ui() { return ui; },
-    act, inspect, gather, build, watchWalk, committeeAgree, openLab, collectSample, labItem, labGuess, labTest, labStep, labNotes, doSurvey, openOptions, optionsAgree,
+    act, inspect, gather, build, planMeeting, chooseTech, activate, watchWalk, committeeAgree, openLab, collectSample, labItem, labGuess, labTest, labStep, labNotes, doSurvey, openOptions, optionsAgree,
     newVillage: (name, scenarioId, salt) => { s = sim.generateVillage(name, salt == null ? 1 : salt, scenarioId); persist(); enterGame(); },
   };
 })(window);

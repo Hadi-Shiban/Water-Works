@@ -138,6 +138,31 @@ Built as planned, with these choices:
 - A satisfying construction sequence, an activation moment, and the walking route shortening.
 - Accept: unsuitable technologies can't be chosen; each stage shows 3 visual states; activation changes round trip and people served immediately.
 
+### Phase 3: Build the water solution (Level 3), with polish
+**Status: implemented, awaiting review.**
+
+Flow:
+1. Planning meeting with the committee, engineer and caretaker.
+2. Technology cards: only options the investigation found suitable are shown. Only the recommended one is buildable; asking about another gets an honest reason, and the player isn't trapped.
+3. The site appears on the map. Gathering spots refill when Level 3 begins, so at most ~2 extra breaks are needed.
+4. Construction: staked site, then frame or drilling rig with workers and supplies, then the finished structure.
+5. A three-step activation:
+   - Highland Springs (gravity-fed): open the spring box, follow the water down the pipeline, open the tap and test.
+   - Red Rock Plateau (drilled well): prime the pump, pump a jerry can full (5 strokes), test.
+   - Wetland Crossroads (rainwater): connect the gutters, divert the first flush, fill check and test.
+   Every scenario ends with an explicit germ test (Safe).
+6. Impact: people served, the round trip drops, collectors walk to the new water point, and ambient walkers increase.
+7. The "Water Project Activated!" milestone unlocks Level 4.
+
+Also in this phase:
+- Three-hit gathering.
+- 5–6 ambient animals per scenario: sheep, chickens and birds; goats, lizards and birds; ducks, a frog and a heron. Small SVG figures with calm CSS loops, which respect reduced motion.
+- Start screen in Fredoka and Nunito (Google Fonts), with a rounded yellow Start button.
+
+Tests: 36 unit tests and 367 browser checks.
+
+**Art that would improve this phase:** painted overlays matching the backgrounds for the tapstand, hand pump, rain tank, spring box, drilling rig and construction scaffold. Each needs three states (site, building, complete), drawn angled top-down, at 256×256 on a transparent background. Painted animal sprite sheets would also help: two or three frames each, at 64×64. The current SVG stand-ins work but are flatter than the paintings.
+
 ### Phase 4: Community and distribution (Level 4)
 - Four needs measured in jerry cans, with a protected clinic minimum.
 - Safe storage and hygiene actions, one expansion with a capacity preview, and one community development decision.

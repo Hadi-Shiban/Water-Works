@@ -13,7 +13,7 @@ python3 -m http.server 8000      # then open http://localhost:8000
 # or just open index.html in a browser
 ```
 
-- `index.html`: the **village game** (in development; Levels 1–2 of 5 are playable).
+- `index.html`: the **village game** (in development; Levels 1–3 of 5 are playable).
 - `municipal.html`: the original municipal-utility prototype, kept unchanged and documented below.
 - `?scenario=highland|plateau|wetland` forces a landscape (for testing and teaching). Normally it is chosen for you.
 - `?dev=routes` opens the developer route editor: a coordinate grid, draggable route waypoints, hotspot bounds, walker highlights, an "after the water point is built" preview, and **Copy routes JSON** to paste back into `js/village/data.js`. Edits are not saved; nothing changes for players.
@@ -24,7 +24,7 @@ Progress saves automatically in your browser (`localStorage`). Use **Menu → Ne
 
 ```bash
 node --test tests/                                   # model unit tests
-node --experimental-websocket tests/smoke.mjs        # Levels 1–2 incl. the lab scene, all scenarios, desktop/tablet/phone, in headless Chrome (needs Chrome)
+node --experimental-websocket tests/smoke.mjs        # Levels 1–3, all scenarios, desktop/tablet/phone, in headless Chrome (needs Chrome)
 ```
 
 ## Artwork

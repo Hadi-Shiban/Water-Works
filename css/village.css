@@ -132,6 +132,7 @@ a { color: var(--water-700); }
 @keyframes beckon { 0%, 100% { box-shadow: 0 0 0 2px rgba(23, 25, 28, .35), 0 0 0 0 rgba(242, 193, 24, .7); } 50% { box-shadow: 0 0 0 2px rgba(23, 25, 28, .35), 0 0 0 12px rgba(242, 193, 24, 0); } }
 .hs-site { display: flex; flex-direction: column-reverse; align-items: center; transform: translate(-50%, calc(-100% + 19px)); }
 .hs-site.built .ring { border-color: #fff4d6; }
+.hs-site.hs-below { flex-direction: column; transform: translate(-50%, -19px); }
 
 .node { display: grid; justify-items: center; gap: 3px; }
 .node-chip { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: rgba(252, 248, 236, .95);
@@ -319,6 +320,106 @@ a { color: var(--water-700); }
 .rt-path { fill: none; stroke: none; }
 .rt:not(.active) .route, .rt:not(.active) .route-lit { display: none; }
 .walker { pointer-events: none; }
+
+/* ---- Level 3 water systems --------------------------------------------------------------- */
+.pipeline, .pipeflow, .gutter { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.pipeline[data-state="hidden"], .gutter[data-state="hidden"], .sys-extra[data-state="hidden"] { display: none; }
+.pipeline { stroke: #7d5a3a; stroke-dasharray: 2 7; opacity: .75; }
+.pipeline[data-state="active"] { stroke: #2f6f9a; stroke-dasharray: none; opacity: .55; }
+.pipeflow { stroke: #9fd6f2; stroke-dasharray: 3 12; opacity: 0; }
+.system-active .pipeflow { opacity: .9; animation: pipeflow 1.4s linear infinite; }
+.pipeflow.tracing { opacity: 1; stroke: #dff3ff; stroke-dasharray: 2400; stroke-dashoffset: 2400; animation: trace 2.8s ease-in-out forwards; }
+@keyframes pipeflow { to { stroke-dashoffset: -15; } }
+@keyframes trace { to { stroke-dashoffset: 0; } }
+.gutter { stroke: #8f887a; }
+.gutter[data-state="active"], .gutter.lit { stroke: #4a9ccc; }
+.gutter.lit { animation: lit 1.2s ease-in-out 2; }
+@keyframes lit { 50% { stroke: #bfe6fa; } }
+.sys-extra[data-state="built"], .sys-extra[data-state="active"] { animation: rise .8s var(--ease); }
+.wp .splash circle { fill: #8fd0f2; opacity: 0; }
+.system-active .wp .splash circle { animation: drip 1.6s ease-in infinite; }
+.system-active .wp .splash circle:nth-child(2) { animation-delay: .5s; } .system-active .wp .splash circle:nth-child(3) { animation-delay: 1s; }
+.wp.pouring .splash circle { animation: drip .45s ease-in 2; }
+@keyframes drip { 0% { opacity: 0; transform: translateY(-4px); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(10px); } }
+.wp .pump-handle { transform-box: fill-box; transform-origin: 0% 100%; }
+.wp.pumping .pump-handle { animation: pump .45s ease-in-out 2 alternate; }
+@keyframes pump { to { transform: rotate(18deg); } }
+.wp .tank-fill { transform-box: fill-box; transform-origin: 50% 100%; transition: transform 1.2s var(--ease); }
+.system-active .wp .tank-fill { transform: scaleY(11); }
+.wp .drill { animation: drill .3s linear infinite alternate; }
+@keyframes drill { to { transform: translateY(3px); } }
+.rainfx { position: absolute; width: 0; height: 0; pointer-events: none; }
+.rainfx i { position: absolute; top: -70px; width: 1.5px; height: 12px; background: rgba(170, 215, 240, .85); border-radius: 1px; animation: rainfall .7s linear 3; }
+@keyframes rainfall { to { transform: translateY(80px); opacity: .2; } }
+
+/* ---- Ambient animals ------------------------------------------------------------------------- */
+.animals { pointer-events: none; }
+.animal .move, .animal use { transform-box: fill-box; }
+.a-graze .move { animation: wander 14s ease-in-out infinite; }
+.a-graze .head, .a-peck .head { transform-box: fill-box; transform-origin: 0% 100%; }
+.a-graze use { animation: none; }
+.an-sheep.a-graze .head, .an-goat .head { animation: graze 7s ease-in-out infinite; }
+.a-rest .move { animation: breathe 5s ease-in-out infinite; transform-origin: 50% 100%; }
+.a-peck .head { animation: peck 3.2s ease-in-out infinite; }
+.a-peck .move { animation: wander 11s ease-in-out infinite; }
+.a-walk .move { animation: walk 18s ease-in-out infinite; }
+.a-dart .move { animation: dart 9s ease-out infinite; }
+.a-swim .move { animation: swim 16s ease-in-out infinite; }
+.a-hop .move { animation: hop 7s ease-out infinite; }
+.a-stand .head { transform-box: fill-box; transform-origin: 20% 100%; animation: heron 12s ease-in-out infinite; }
+.a-fly .move { animation: fly 34s linear infinite; }
+.a-fly .wing { animation: flap .5s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
+@keyframes wander { 0%, 30% { transform: translateX(0); } 45%, 75% { transform: translateX(6px); } 90%, 100% { transform: translateX(0); } }
+@keyframes graze { 0%, 40%, 100% { transform: rotate(0); } 50%, 80% { transform: rotate(28deg) translateY(2px); } }
+@keyframes breathe { 50% { transform: scaleY(.96); } }
+@keyframes peck { 0%, 60%, 100% { transform: rotate(0); } 68%, 76% { transform: rotate(40deg); } 72% { transform: rotate(15deg); } }
+@keyframes walk { 0%, 20% { transform: translateX(0); } 45%, 60% { transform: translateX(14px); } 85%, 100% { transform: translateX(0); } }
+@keyframes dart { 0%, 60% { transform: translateX(0); } 64%, 90% { transform: translateX(10px); } 94%, 100% { transform: translateX(0); } }
+@keyframes swim { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(18px, 1px); } }
+@keyframes hop { 0%, 70% { transform: translate(0, 0); } 76% { transform: translate(4px, -7px); } 82% { transform: translate(8px, 0); } 90%, 100% { transform: translate(0, 0); } }
+@keyframes heron { 0%, 80%, 100% { transform: rotate(0); } 85%, 92% { transform: rotate(35deg); } }
+@keyframes fly { 0% { transform: translateX(0); opacity: 0; } 8% { opacity: 1; } 92% { opacity: 1; } 100% { transform: translateX(var(--range, 300px)); opacity: 0; } }
+@keyframes flap { to { transform: scaleY(-.6); } }
+
+/* ---- Level 3 panels ----------------------------------------------------------------------- */
+.small { font-size: 12.5px; }
+.techicon { width: 44px; height: 44px; flex: none; }
+.dlg-tech { width: min(860px, calc(100% - 24px)); }
+.tcards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.tcard { display: grid; gap: 8px; align-content: start; padding: 14px; border-radius: 10px; background: var(--paper-100); border: 2px solid transparent; }
+.tcard.pick { background: #fff7d6; border-color: var(--yellow); }
+.tcard.chosen { box-shadow: 0 0 0 3px rgba(242, 193, 24, .5); }
+.tc-top { display: flex; gap: 10px; align-items: center; }
+.tc-top b { display: block; font: 600 17px var(--font-display); margin-bottom: 2px; }
+.tc-facts { display: grid; gap: 4px; margin: 0; font-size: 13px; }
+.tc-facts div { display: grid; grid-template-columns: 58px 1fr; gap: 6px; }
+.tc-facts dt { font-weight: 700; color: var(--ink-faint); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; padding-top: 2px; }
+.tc-facts dd { margin: 0; }
+.steps { display: grid; gap: 6px; }
+.steps li { display: flex; gap: 8px; font-size: 13px; color: var(--ink-faint); }
+.steps li.now { color: var(--ink); font-weight: 650; }
+.steps li.now .ic { color: var(--yellow-600); }
+.steps li.done { color: var(--ink-soft); }
+.steps li.done .ic { color: var(--ok-600); }
+.canfill { width: 34px; height: 44px; margin: 4px auto 0; border: 2px solid #94700a; border-radius: 4px; background: #fff7d6; display: flex; align-items: flex-end; overflow: hidden; }
+.canfill i { display: block; width: 100%; background: #4a9ccc; transition: height .25s var(--ease); }
+.facts dd small { font-weight: 500; color: var(--ink-faint); font-size: 11px; }
+
+/* ---- Start screen: friendlier, rounder type ---------------------------------------------- */
+.start { font-family: "Nunito", var(--font-ui); }
+.start h1 { font: 700 clamp(56px, 9vw, 104px)/0.95 "Fredoka", var(--font-ui); letter-spacing: -.01em; color: #fffaf0; text-shadow: 0 3px 0 rgba(0, 0, 0, .25), 0 10px 30px rgba(0, 0, 0, .25); }
+.start .tagline { font: 600 clamp(20px, 2.4vw, 26px)/1.3 "Fredoka", var(--font-ui); font-style: normal; }
+.start .lead { font-size: 17px; line-height: 1.6; }
+.start .kicker { font-family: "Nunito", var(--font-ui); font-weight: 800; }
+.start-panel { gap: 20px; max-width: 520px; }
+.start-actions { gap: 12px; margin-top: 10px; }
+.start .btn { font-family: "Nunito", var(--font-ui); font-weight: 800; border-radius: 999px; }
+.start .btn.primary.big { min-height: 56px; padding: 12px 34px; font-size: 19px; box-shadow: 0 4px 0 #b48a00, 0 10px 24px rgba(0, 0, 0, .3); }
+.start .btn.primary.big:active { transform: translateY(2px); box-shadow: 0 2px 0 #b48a00; }
+.start .name-form label { font: 600 22px "Fredoka", var(--font-ui); }
+.start .name-row input { border-radius: 14px; font-family: "Nunito", var(--font-ui); font-weight: 700; }
+.start .disclaimer { margin-top: 24px; }
+@media (max-width: 720px) { .start-art::after { background: linear-gradient(180deg, rgba(16, 18, 20, .45) 0%, rgba(16, 18, 20, .82) 35%, rgba(16, 18, 20, .82) 75%, rgba(16, 18, 20, .5) 100%); } }
 
 /* ---- Level 2 hotspots ---------------------------------------------------------------------- */
 .hs-survey .ring { border-style: dashed; border-color: #fff4d6; background: rgba(23, 25, 28, .35); }

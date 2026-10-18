@@ -73,6 +73,8 @@ async function playCampaign(scenario, vp) {
   await go(`${BASE}/index.html?scenario=${scenario}`);
   await evaluate('localStorage.clear(); true'); await go(`${BASE}/index.html?scenario=${scenario}`);
   check(await evaluate('!document.getElementById("start").hidden && document.getElementById("continueBtn").hidden'), 'start screen shows, no Continue without a save');
+  await sleep(600); await shot(`${scenario}-0-start-${vp[0]}`);
+  check(await evaluate('document.fonts.check("700 40px Fredoka") && getComputedStyle(document.querySelector("#startTitle")).fontFamily.includes("Fredoka")'), 'start title uses Fredoka');
   await click('[data-act="start-game"]');
   await evaluate('document.getElementById("villageName").value = "Smoke Ridge"; true');
   await click('#nameForm button[type="submit"]'); await sleep(700);
@@ -215,11 +217,68 @@ async function playCampaign(scenario, vp) {
   check(await S('s.level === 3 && s.completedLevels.join() === "1,2"'), 'advanced to Level 3');
   check(await evaluate('WV.audio.state().playing'), 'music still playing after Continue and the level change');
 
+  // ---- Level 3: build the water solution -------------------------------------------
+  const musicL3 = await evaluate('WV.audio.state().position');
+  check(await evaluate('document.querySelectorAll(".animal").length >= 3'), 'ambient animals are on the map');
+  check(await evaluate('document.querySelector(\'#hotspots [data-id="waterPoint"]\').hidden'), 'the water point site waits for a choice');
+  await click('#hotspots [data-id="committee"]'); await sleep(250);
+  await click('#sheet [data-act="plan-meeting"]'); await sleep(400);
+  check(await S('s.flags.planningMet') && await evaluate('/From findings to a plan/.test(document.getElementById("dlg").textContent)'), 'planning meeting opens');
+  if (vp[0] >= 1000) await shot(`${scenario}-14-planning`);
+  await click('[data-act="open-tech"]'); await sleep(300);
+  const primary3 = await S('WV.data.scenarios[s.scenarioId].primaryTech');
+  check(await evaluate(`document.querySelectorAll('.tcard.pick').length === 1 && !!document.querySelector('.tcard.pick [data-id="${primary3}"]')`), 'one recommended technology card can be chosen');
+  check(await evaluate(`[...document.querySelectorAll('.tcard [data-act="choose-tech"]')].every((b) => !['rehabilitation'].includes(b.dataset.id))`), 'unsuitable technologies are not offered');
+  if (vp[0] >= 1000) await shot(`${scenario}-15-tech`);
+  const alt = await evaluate(`(() => { const b = document.querySelector('.tcard.alt [data-act="choose-tech"]'); return b ? b.dataset.id : null; })()`);
+  if (alt) { await click(`.tcard.alt [data-id="${alt}"]`); await sleep(300); check(await S('s.tech === null') && await evaluate('!!document.querySelector(".dlg-tech .person-line")'), 'asking about an alternative explains, without trapping'); }
+  await click(`.tcard.pick [data-id="${primary3}"]`); await sleep(400);
+  check(await S(`s.tech === '${primary3}'`) && await evaluate('!document.querySelector(\'#hotspots [data-id="waterPoint"]\').hidden'), 'choice made; the construction site appears');
+  await click('#hotspots [data-id="waterPoint"]'); await sleep(300);
+  // gather the few missing materials (three hits each), then build
+  for (let guard = 0; guard < 6 && !(await S('s.resources.wood >= WV.data.technologies[s.tech].cost.wood && s.resources.stone >= WV.data.technologies[s.tech].cost.stone')); guard++) {
+    const target = await S('(() => { const c = WV.data.technologies[s.tech].cost; const res = s.resources.wood < c.wood ? "wood" : "stone"; return WV.sim.sceneOf(s).hotspots.find((h) => h.kind === "node" && h.res === res && s.nodes[h.id].charges > 0).id; })()');
+    for (let h = 0; h < 3; h++) { await click(`#hotspots [data-id="${target}"]`); await sleep(110); }
+    await sleep(620);
+  }
+  const before3 = await S('JSON.stringify(s.resources)');
+  await click('#hotspots [data-id="waterPoint"]'); await sleep(250);
+  await click('#sheet [data-act="build"]'); await sleep(200);
+  await evaluate('document.querySelector(\'#sheet [data-act="build"]\') && document.querySelector(\'#sheet [data-act="build"]\').click(); true');
+  check(await S(`s.builds.waterPoint === 'building' && (JSON.parse('${before3}').wood - s.resources.wood) === WV.data.technologies[s.tech].cost.wood`), 'construction starts and materials are spent once');
+  await sleep(1500); if (vp[0] >= 1000) await shot(`${scenario}-16-building`);
+  await sleep(3300);
+  check(await S('s.builds.waterPoint === "built"'), 'construction completes');
+  await click('#hotspots [data-id="waterPoint"]'); await sleep(250);
+  for (let guard = 0; guard < 12 && !(await S('s.flags.systemActive')); guard++) {
+    await click('#sheet [data-act="activate"]'); await sleep(scenario === 'highland' ? 1500 : 500);
+    if (guard === 1 && vp[0] >= 1000) await shot(`${scenario}-17-activating`);
+    await sleep(2600);
+  }
+  check(await S('s.flags.systemActive && s.peopleWithWater > 0 && s.activation.length === 3'), 'the system activates after its three steps');
+  check(await evaluate('WV.scene.walkerPositions().some((w) => w.route === "waterCollectionAfter") && !WV.scene.walkerPositions().some((w) => w.route === "waterCollection")'), 'collectors switch to the close water point');
+  check(await evaluate('WV.scene.walkerPositions().length >= 5'), 'the village stays lively');
+  if (vp[0] >= 1000) {
+    await evaluate('document.querySelectorAll(".toasts .toast").forEach((x) => x.remove()); document.getElementById("sheet").hidden = true; true');
+    await shot(`${scenario}-18-active`);
+    const wp = await evaluate(`(() => { const b = document.querySelector('.site.wp').getBoundingClientRect(); return [b.x + b.width / 2, b.y + b.height / 2]; })()`);
+    const c = await send('Page.captureScreenshot', { format: 'png', clip: { x: Math.max(0, wp[0] - 160), y: Math.max(0, wp[1] - 110), width: 320, height: 200, scale: 2 } });
+    fs.writeFileSync(path.join(OUT, `${scenario}-18b-wp.png`), Buffer.from(c.result.data, 'base64'));
+  }
+  await sleep(4500);
+  check(await evaluate('/Water Project Activated!/.test(document.getElementById("dlg").textContent)'), 'Water Project Activated! milestone');
+  if (vp[0] >= 1000) await shot(`${scenario}-19-milestone`);
+  const musicL3b = await evaluate('WV.audio.state()');
+  check(musicL3b.playing && musicL3b.position > musicL3 + 8, `music kept playing through Level 3 (${musicL3.toFixed(1)}s → ${musicL3b.position.toFixed(1)}s)`);
+  await click('[data-act="next-level"]'); await sleep(400);
+  check(await S('s.level === 4 && s.flags.level3Completed'), 'Level 4 unlocked');
+
   // save → reload → continue
   await go(`${BASE}/index.html`);
   check(await evaluate('!document.getElementById("continueBtn").hidden'), 'Continue offered after reload');
   await click('#continueBtn'); await sleep(600);
-  check(await S(`s.level === 3 && s.builds.lab === 'built' && s.name === 'Smoke Ridge' && s.scenarioId === '${scenario}' && Object.keys(s.results).length === 2 && s.surveys.length === 2 && s.flags.optionsReviewed && s.flags.level2Completed`), 'continue restores level, buildings, lab results and surveys');
+  check(await S(`s.level === 4 && s.builds.lab === 'built' && s.builds.waterPoint === 'built' && s.flags.systemActive && s.tech && s.name === 'Smoke Ridge' && s.scenarioId === '${scenario}' && Object.keys(s.results).length === 2 && s.flags.level3Completed`), 'continue restores all three levels: station, water system, results');
+  check(await evaluate('document.querySelector(".site.wp").getAttribute("data-state") === "built" && document.querySelector("svg.scene").classList.contains("system-active")'), 'the active water system is drawn after continue');
   check(await evaluate('document.querySelector(".site").getAttribute("data-state") === "built"'), 'built station is drawn after continue');
 }
 

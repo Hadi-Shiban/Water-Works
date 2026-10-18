@@ -354,7 +354,7 @@ test('lab tests change the experts’ judgement', () => {
 
 test('the walker plan grows from collection trips to closer trips plus village life', () => {
   const s = village('Kesi Hill', 1, 'highland');
-  const before = sim.walkerPlan(s); const after = sim.walkerPlan({ ...s, builds: { ...s.builds, waterPoint: 'built' } });
+  const before = sim.walkerPlan(s); const after = sim.walkerPlan({ ...s, flags: { ...s.flags, systemActive: true } });
   assert.equal(before[0].id, 'waterCollection'); assert.equal(after[0].id, 'waterCollectionAfter');
   assert.ok(!before.some((p) => p.id === 'labApproach'), 'no lab walker before the station exists');
   const l2 = sim.walkerPlan({ ...s, level: 2, builds: { lab: 'built' } });
@@ -400,5 +400,106 @@ test('Level 1 needs only 15 hits of gathering (5 breaks) in every scenario', () 
     const per = (res) => nodes.filter((n) => n.res === res)[0].yield;
     const breaks = Math.ceil(6 / per('wood')) + Math.ceil(4 / per('stone'));
     assert.equal(breaks * sim.HITS_TO_BREAK, 15, id);
+  }
+});
+
+/* ---- Level 3: build the water solution ------------------------------------------------------- */
+function finishLevel2(id, salt = 9) {
+  let s = finishLevel1(id, salt);
+  s = play(s, (x) => sim.collectSample(x, 'source')); s = play(s, sim.openLab);
+  s = benchWork(s); s = surveyAll(s);
+  s = play(s, sim.reviewNotes); s = play(s, sim.reviewOptions);
+  return play(s, sim.completeLevel);
+}
+function gatherUntil(s, need) {
+  const nodes = D.scenes[D.scenarios[s.scenarioId].scene].hotspots.filter((h) => h.kind === 'node');
+  let breaks = 0;
+  for (const n of nodes) while (s.resources[n.res] < need[n.res] && s.nodes[n.id].charges > 0) { s = play(s, (x) => sim.gather(x, n.id)); breaks++; }
+  return { s, breaks };
+}
+
+test('Level 3 starts with refilled gathering spots and the water point hidden until a choice is made', () => {
+  for (const id of SCENARIOS) {
+    const s = finishLevel2(id);
+    assert.equal(s.level, 3);
+    assert.ok(Object.values(s.nodes).every((n) => n.charges === 3), `${id}: nodes refilled`);
+    assert.equal(sim.visible(s, sim.hotspot(s, 'waterPoint')), false);
+    assert.equal(sim.visible(s, sim.hotspot(s, 'survey1')), false, 'survey markers are gone after Level 2');
+    assert.equal(sim.nextObjective(s).id, 'meeting');
+  }
+});
+
+test('only suitable technologies are offered, and only the recommended one can be built', () => {
+  for (const id of SCENARIOS) {
+    let s = finishLevel2(id);
+    assert.equal(sim.chooseTech(s, D.scenarios[id].primaryTech).ok, false, 'meeting first');
+    s = play(s, sim.planMeeting);
+    const choices = sim.techChoices(s);
+    const all = sim.technologyOptions(s);
+    for (const c of choices) assert.notEqual(all.find((x) => x.id === c.id).status, 'no', `${id}: ${c.id} unsuitable but offered`);
+    assert.deepEqual(choices.filter((c) => c.selectable).map((c) => c.id), [D.scenarios[id].primaryTech]);
+    for (const c of choices.filter((x) => !x.selectable)) {
+      const r = sim.chooseTech(s, c.id); assert.equal(r.ok, false); assert.ok(r.reason.length > 10, 'explains why'); assert.equal(r.state, s, 'not trapped');
+    }
+    const bad = all.find((x) => x.status === 'no' && x.id !== 'statusQuo');
+    assert.equal(sim.chooseTech(s, bad.id).ok, false, `${id}: unsuitable ${bad.id} refused`);
+    s = play(s, (x) => sim.chooseTech(x, D.scenarios[id].primaryTech));
+    assert.equal(sim.visible(s, sim.hotspot(s, 'waterPoint')), true, 'the site appears once chosen');
+  }
+});
+
+test('Level 3 is completable in every scenario with little extra gathering; resources are spent once', () => {
+  for (const id of SCENARIOS) {
+    let s = finishLevel2(id);
+    s = play(s, sim.planMeeting); s = play(s, (x) => sim.chooseTech(x, D.scenarios[id].primaryTech));
+    s = play(s, (x) => sim.inspect(x, 'waterPoint'));
+    const need = D.technologies[s.tech].cost;
+    assert.equal(sim.nextObjective(s).id, 'materials');
+    assert.match(sim.nextObjective(s).text, new RegExp(`wood \\d+/${need.wood} · stone \\d+/${need.stone}`));
+    const g = gatherUntil(s, need); s = g.s;
+    assert.ok(g.breaks <= 2, `${id}: needed ${g.breaks} extra gathers`);
+    const before = { ...s.resources };
+    s = play(s, (x) => sim.startBuild(x, 'waterPoint'));
+    assert.deepEqual(s.resources, { wood: before.wood - need.wood, stone: before.stone - need.stone });
+    assert.equal(sim.startBuild(s, 'waterPoint').ok, false, 'no double spend');
+    const again = sim.chooseTech(s, 'rehabilitation'); assert.equal(again.ok, false); assert.equal(again.state, s, 'the choice is locked once building starts');
+    s = play(s, (x) => sim.finishBuild(x, 'waterPoint'));
+    const steps = sim.activationSteps(s);
+    assert.equal(steps.length, 3);
+    assert.equal(sim.activate(s, steps[2].id).ok, false, 'steps run in order');
+    for (const st of steps) s = play(s, (x) => sim.activate(x, st.id));
+    assert.equal(s.flags.systemActive, true);
+    assert.ok(s.peopleWithWater > s.population * 0.5 && s.peopleWithWater <= s.population, `${id}: served ${s.peopleWithWater}/${s.population}`);
+    const m = sim.metrics(s);
+    assert.ok(m.roundTripAfter < s.baseline.roundTripMin && m.hoursSavedPerDay > 0);
+    assert.equal(sim.walkerPlan(s)[0].id, 'waterCollectionAfter', 'collectors switch to the close water point');
+    assert.ok(sim.walkerPlan(s).length >= 3, 'the village stays busy');
+    assert.equal(sim.levelReady(s), true);
+    s = play(s, sim.completeLevel);
+    assert.equal(s.level, 4); assert.equal(s.flags.level3Completed, true);
+    assert.deepEqual(sim.deserialize(sim.serialize(s)), s);
+  }
+});
+
+test('an interrupted water-point build loads as built, and activation progress is saved', () => {
+  let s = finishLevel2('highland');
+  s = play(s, sim.planMeeting); s = play(s, (x) => sim.chooseTech(x, 'gravityFed'));
+  s = gatherUntil(s, D.technologies.gravityFed.cost).s;
+  s = play(s, (x) => sim.startBuild(x, 'waterPoint'));
+  let back = sim.deserialize(sim.serialize(s));
+  assert.equal(back.builds.waterPoint, 'built'); assert.equal(back.tech, 'gravityFed');
+  back = play(back, (x) => sim.activate(x, 'valve'));
+  const again = sim.deserialize(sim.serialize(back));
+  assert.deepEqual(again.activation, ['valve']); assert.equal(sim.nextActivation(again).id, 'trace');
+});
+
+test('animals are placed inside each scene, 3–6 per scenario, of the requested kinds', () => {
+  const kinds = { highland: ['sheep', 'chicken', 'bird'], plateau: ['lizard', 'goat', 'bird'], wetland: ['duck', 'frog', 'heron'] };
+  for (const [id, sc] of Object.entries(D.scenes)) {
+    assert.ok(sc.animals.length >= 3 && sc.animals.length <= 6, id);
+    assert.deepEqual([...new Set(sc.animals.map((a) => a.kind))].sort(), kinds[id].sort());
+    sc.animals.forEach((a) => assert.ok(a.x > 2 && a.x < 98 && a.y > 2 && a.y < 98));
+    const spots = sc.hotspots.filter((h) => h.kind !== 'node');
+    sc.animals.filter((a) => a.anim !== 'fly').forEach((a) => spots.forEach((h) => assert.ok(Math.hypot(a.x - h.x, a.y - h.y) > 3, `${id}: ${a.kind} sits on hotspot ${h.id}`)));
   }
 });

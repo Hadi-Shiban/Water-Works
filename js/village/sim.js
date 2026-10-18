@@ -107,6 +107,10 @@
     s.flags = { labUnlocked: false, clearSampleInspected: false, dirtySampleInspected: false, microscopeUsed: false,
       filterTestCompleted: false, notesReviewed: false, optionsReviewed: false, level2Completed: false, ...s.flags };
     if (s.completedLevels && s.completedLevels.indexOf(2) >= 0) s.flags.level2Completed = true;
+    s.flags = { planningMet: false, systemActive: false, level3Completed: false, ...s.flags };
+    s.builds = { lab: 'site', waterPoint: 'site', ...s.builds };
+    if (s.tech === undefined) s.tech = null;
+    s.activation = s.activation || [];
     s.people = s.people || {};
     const used = Object.values(s.people).map((p) => p.name);
     const spare = shuffle(data.namePool, rng(s.seed)).filter((n) => used.indexOf(n) < 0);
@@ -126,13 +130,22 @@
       communityHours: ((b.tripsPerDay * b.roundTripMin) / 60) * s.households,
       cansPerDay: b.tripsPerDay * b.cansPerTrip * s.households,
       peopleWithWater: s.peopleWithWater,
+      ...afterMetrics(s),
     };
   }
 
+  /* What changed once the system runs: served households walk a short trip instead. */
+  function afterMetrics(s) {
+    if (!s.flags || !s.flags.systemActive || !s.tech) return { active: false };
+    const b = s.baseline; const after = D().technologies[s.tech].afterRoundTripMin;
+    const servedHouseholds = Math.round(s.households * (s.peopleWithWater / s.population));
+    return { active: true, roundTripAfter: after, servedHouseholds,
+      hoursSavedPerDay: (servedHouseholds * b.tripsPerDay * (b.roundTripMin - after)) / 60 };
+  }
   const sceneOf = (s) => D().scenes[D().scenarios[s.scenarioId].scene];
   const hotspot = (s, id) => sceneOf(s).hotspots.find((h) => h.id === id);
 
-  const visible = (s, h) => !!h && (!h.minLevel || s.level >= h.minLevel);
+  const visible = (s, h) => !!h && (!h.minLevel || s.level >= h.minLevel) && (!h.maxLevel || s.level <= h.maxLevel) && (!h.needsTech || !!s.tech);
 
   /* ---- Actions ------------------------------------------------------------------------ */
   function inspect(s, id) {
@@ -169,8 +182,15 @@
     return { ...r, hits: HITS_TO_BREAK, done: r.ok };
   }
 
+  /* The lab is a fixed project; the water point takes its cost from the chosen technology. */
+  function buildDef(s, id) {
+    if (id !== 'waterPoint') return D().builds[id];
+    const tech = s.tech && D().technologies[s.tech];
+    return { ...D().waterPointBuild, name: tech ? tech.structureName : 'Water point', cost: tech ? tech.cost : { wood: 0, stone: 0 },
+      requires: (x) => x.level >= 3 && !!x.tech, requiresText: 'Choose the water system with the committee first.' };
+  }
   function canBuild(s, id) {
-    const b = D().builds[id];
+    const b = buildDef(s, id);
     if (!b) return { ok: false, reason: 'Unknown project.' };
     if (s.builds[id] !== 'site') return { ok: false, reason: s.builds[id] === 'built' ? 'Already built.' : 'Under construction.' };
     if (b.requires && !b.requires(s)) return { ok: false, reason: b.requiresText };
@@ -183,7 +203,7 @@
   function startBuild(s, id) {
     const c = canBuild(s, id);
     if (!c.ok) return { ok: false, state: s, reason: c.reason };
-    const t = clone(s); const cost = D().builds[id].cost;
+    const t = clone(s); const cost = buildDef(s, id).cost;
     Object.keys(cost).forEach((k) => (t.resources[k] -= cost[k]));
     t.builds[id] = 'building';
     return { ok: true, state: t };
@@ -336,6 +356,45 @@
     return cards;
   }
 
+  /* ---- Level 3: plan, choose, build, activate ------------------------------------------------ */
+  function planMeeting(s) {
+    if (s.level < 3) return fail(s, 'Planning starts in Level 3.');
+    return { ok: true, state: s.flags.planningMet ? s : setFlag(s, 'planningMet') };
+  }
+  /* Only technologies the investigation found suitable are offered. The recommended one
+     can be chosen; a suitable-but-weaker one gets an honest explanation instead.        */
+  function techChoices(s) {
+    return technologyOptions(s).filter((c) => c.id !== 'statusQuo' && ['recommended', 'part', 'possible', 'complement', 'later'].indexOf(c.status) >= 0)
+      .map((c) => ({ ...c, selectable: c.status === 'recommended' && !!D().technologies[c.id].playable }));
+  }
+  function chooseTech(s, id) {
+    if (s.level < 3 || !s.flags.planningMet) return fail(s, 'Hold the planning meeting first.');
+    if (s.builds.waterPoint !== 'site') return fail(s, 'Construction has already started.');
+    const c = techChoices(s).find((x) => x.id === id);
+    if (!c) return fail(s, 'The investigation showed this won’t work here.');
+    if (!c.selectable) return fail(s, c.reason);
+    const t = clone(s); t.tech = id;
+    return { ok: true, state: t };
+  }
+  const activationSteps = (s) => (s.tech ? D().technologies[s.tech].activation : []);
+  function nextActivation(s) { return activationSteps(s).find((st) => s.activation.indexOf(st.id) < 0) || null; }
+  /* People the new system can serve: capacity in jerry cans a day at 20 L per person [game]. */
+  function capacityPeople(s) {
+    if (!s.tech) return 0;
+    const L = D().jerryCanLitres, goal = D().litresPerPersonGoal;
+    if (s.tech === 'rainwater') return Math.round((s.site.bigRoofsM2 * s.site.rainfallMm * 0.8) / 365 / goal);
+    return Math.round((D().technologies[s.tech].capacityCans * L) / goal);
+  }
+  function activate(s, stepId) {
+    if (s.builds.waterPoint !== 'built') return fail(s, 'Finish building first.');
+    const next = nextActivation(s);
+    if (!next) return { ok: true, state: s, done: true };
+    if (next.id !== stepId) return fail(s, `First: ${next.label.toLowerCase()}.`);
+    const t = clone(s); t.activation.push(stepId);
+    if (!nextActivation(t)) { t.flags.systemActive = true; t.peopleWithWater = Math.min(t.population, capacityPeople(t)); }
+    return { ok: true, state: t, step: next, done: !!t.flags.systemActive };
+  }
+
   /* ---- Walkers: who walks where, as the village changes ---------------------------------------- */
   /* Every route in a scene, as [id, route] pairs (used by the scene, the editor and tests). */
   function allRoutes(scene) {
@@ -346,7 +405,7 @@
   }
   function walkerPlan(s, opts) {
     const routes = sceneOf(s).routes; const aft = routes.waterCollectionAfter;
-    const after = !!(opts && opts.after) || (aft && s.builds[aft.whenBuilt] === 'built');
+    const after = !!(opts && opts.after) || (!!aft && !!s.flags[aft.whenFlag]);
     const plan = [{ id: after ? 'waterCollectionAfter' : 'waterCollection', route: after ? aft : routes.waterCollection }];
     const lab = routes.labApproach;
     if (lab && s.level >= (lab.fromLevel || 1) && (!lab.needsBuilt || s.builds[lab.needsBuilt] === 'built')) plan.push({ id: 'labApproach', route: lab });
@@ -359,7 +418,8 @@
   function objectives(s) {
     const l = levelDef(s);
     const label = (id) => ((hotspot(s, id) || {}).label || id).toLowerCase();
-    return (l ? l.objectives : []).map((o) => ({ id: o.id, text: o.text(s, label), done: !!o.check(s) }));
+    const need = s.tech ? D().technologies[s.tech].cost : null;
+    return (l ? l.objectives : []).map((o) => ({ id: o.id, text: o.text(s, label, need), done: !!o.check(s, need) }));
   }
   function nextObjective(s) { return objectives(s).find((o) => !o.done) || null; }
   function levelReady(s) {
@@ -371,7 +431,10 @@
     const t = clone(s);
     t.completedLevels.push(t.level);
     if (t.level === 2) t.flags.level2Completed = true;
+    if (t.level === 3) t.flags.level3Completed = true;
     t.level = Math.min(D().levels.length, t.level + 1);
+    // Building season: the gathering spots grow back when construction begins.
+    if (t.level === 3) sceneOf(t).hotspots.filter((h) => h.kind === 'node').forEach((h) => (t.nodes[h.id].charges = h.charges));
     return { ok: true, state: t };
   }
 
@@ -390,7 +453,8 @@
   WV.sim = {
     clone, clamp, hash, rng, shuffle, cleanName, validName, suggestName,
     generateVillage, siteFor, migrate, metrics, sceneOf, hotspot, visible,
-    inspect, gather, strike, HITS_TO_BREAK, canBuild, startBuild, finishBuild, setFlag,
+    inspect, gather, strike, HITS_TO_BREAK, buildDef, canBuild,
+    planMeeting, techChoices, chooseTech, activationSteps, nextActivation, capacityPeople, activate, startBuild, finishBuild, setFlag,
     collectSample, openLab, nextLabStep, inspectJar, useMicroscope, runFilter, filterResult, reviewNotes, labDef, sampleDef,
     survey, readyForOptions, reviewOptions, knownFacts, technologyOptions, walkerPlan, allRoutes,
     levelDef, objectives, nextObjective, levelReady, completeLevel,

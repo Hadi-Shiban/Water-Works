@@ -128,6 +128,95 @@
       <path d="M-3.8 -23.6 q3.8 -3.6 7.6 0 Z" fill="#f2c118"/>
       <g class="hammer"><path d="M4 -15 L10 -21" stroke="var(--skin)" stroke-width="1.9" stroke-linecap="round"/><path d="M10 -21 L12.5 -26" stroke="#5e3b20" stroke-width="1.6"/><rect x="10" y="-28.5" width="6" height="3" rx=".8" fill="#55524c" transform="rotate(-25 13 -27)"/></g>
     </g>
+
+    <!-- Level 3 water systems (origin = ground contact point) -->
+    <g id="art-tapstand" filter="url(#wv-paint)">
+      <ellipse cx="0" cy="2" rx="30" ry="8" fill="#1d1408" opacity=".3" filter="url(#wv-soft)"/>
+      <path d="M-26 0 L-14 -8 L22 -8 L30 0 L18 8 L-18 8 Z" fill="#cfc8b8" stroke="#8f887a" stroke-width="1"/>
+      <path d="M-20 0 L-11 -5 L18 -5 L24 0 L14 5 L-14 5 Z" fill="#b9b2a2"/>
+      <rect x="-4" y="-34" width="10" height="32" rx="1.5" fill="#e6dfcf" stroke="#8f887a" stroke-width="1"/>
+      <rect x="6" y="-34" width="4" height="32" fill="#cfc6b2"/>
+      <path d="M-4 -24 h-8 v4" fill="none" stroke="#4d5a63" stroke-width="2.6" stroke-linecap="round"/>
+      <rect x="-14" y="-28" width="5" height="3" rx="1" fill="#2f6f9a"/>
+      <circle cx="-12" cy="-16" r="0" class="tap-drop" fill="#7fc0e6"/>
+      <use href="#art-can" transform="translate(-12 4) scale(.9)"/>
+      <use href="#art-can" transform="translate(14 3) scale(.8)"/>
+    </g>
+    <g id="art-handpump" filter="url(#wv-paint)">
+      <ellipse cx="0" cy="2" rx="30" ry="9" fill="#1d1408" opacity=".3" filter="url(#wv-soft)"/>
+      <ellipse cx="0" cy="0" rx="26" ry="11" fill="#cfc8b8" stroke="#8f887a" stroke-width="1"/>
+      <ellipse cx="0" cy="-1" rx="20" ry="8" fill="#bdb6a6"/>
+      <path d="M18 2 L30 7" stroke="#8f887a" stroke-width="3" stroke-linecap="round"/>
+      <rect x="-5" y="-38" width="10" height="36" rx="2" fill="#2f6b5a" stroke="#1d4237" stroke-width="1"/>
+      <rect x="-6" y="-42" width="12" height="6" rx="2" fill="#24584a"/>
+      <path d="M-5 -26 h-10 v5" fill="none" stroke="#24584a" stroke-width="3.4" stroke-linecap="round"/>
+      <g class="pump-handle"><path d="M4 -38 L28 -48" stroke="#1d4237" stroke-width="3" stroke-linecap="round"/><circle cx="28" cy="-48" r="2.6" fill="#f2c118"/></g>
+      <use href="#art-can" transform="translate(-14 4) scale(.9)"/>
+    </g>
+    <g id="art-raintank" filter="url(#wv-paint)">
+      <ellipse cx="0" cy="3" rx="30" ry="9" fill="#1d1408" opacity=".3" filter="url(#wv-soft)"/>
+      <ellipse cx="0" cy="0" rx="26" ry="8" fill="#a59f92"/>
+      <path d="M-22 -2 V-46 A22 7 0 0 1 22 -46 V-2 A22 7 0 0 1 -22 -2 Z" fill="#d9d3c4" stroke="#8f887a" stroke-width="1"/>
+      <path d="M8 -46 V-2" stroke="#c4bdac" stroke-width="10" opacity=".6"/>
+      <ellipse cx="0" cy="-46" rx="22" ry="7" fill="#c9c2b2" stroke="#8f887a" stroke-width="1"/>
+      <ellipse cx="0" cy="-48" rx="8" ry="3" fill="#8f887a"/>
+      <rect x="-22" y="-40" width="5" height="34" rx="1" fill="#1d1408" opacity=".08"/>
+      <g class="tank-level"><rect x="-2" y="-36" width="4" height="30" rx="1" fill="#efe9dc" stroke="#8f887a" stroke-width=".6"/><rect class="tank-fill" x="-1.2" y="-8" width="2.4" height="2" fill="#4a9ccc"/></g>
+      <path d="M-22 -8 h-7 v4" fill="none" stroke="#4d5a63" stroke-width="2.4" stroke-linecap="round"/>
+      <use href="#art-can" transform="translate(-26 6) scale(.85)"/>
+    </g>
+    <g id="art-rig" filter="url(#wv-paint)">
+      <ellipse cx="0" cy="2" rx="34" ry="9" fill="#1d1408" opacity=".28" filter="url(#wv-soft)"/>
+      <path d="M-22 4 L0 -70 L22 4 M-12 -30 H12 M-16 -14 H16" fill="none" stroke="#8a5a2b" stroke-width="3.4" stroke-linejoin="round"/>
+      <rect x="-4" y="-78" width="8" height="10" fill="#f2c118" stroke="#a37a00"/>
+      <g class="drill"><rect x="-2" y="-66" width="4" height="66" fill="#5e6266"/></g>
+      <rect x="18" y="-14" width="20" height="14" rx="2" fill="#f2c118" stroke="#a37a00"/><circle cx="23" cy="2" r="3" fill="#3a3a3a"/><circle cx="33" cy="2" r="3" fill="#3a3a3a"/>
+    </g>
+    <g id="art-springbox" filter="url(#wv-paint)">
+      <ellipse cx="0" cy="2" rx="22" ry="6" fill="#1d1408" opacity=".3" filter="url(#wv-soft)"/>
+      <path d="M-18 0 L-18 -14 L12 -18 L18 -12 L18 2 Z" fill="#d6cfbf" stroke="#8f887a" stroke-width="1"/>
+      <path d="M-18 -14 L12 -18 L18 -12 L-12 -9 Z" fill="#c2bba9" stroke="#8f887a" stroke-width="1"/>
+      <rect x="-6" y="-16" width="10" height="3" rx="1" fill="#6f6a60"/>
+    </g>
+
+    <!-- Animals: small, painterly, with a part that moves -->
+    <g id="an-sheep"><ellipse cx="0" cy="1" rx="9" ry="2.4" fill="#1d1408" opacity=".3"/>
+      <path d="M-5 -1 v-4 M-1 -1 v-4 M3 -1 v-4 M6 -1 v-4" stroke="#3a2f27" stroke-width="1.6" stroke-linecap="round"/>
+      <path d="M-8 -6 q-2 -6 3 -7 q2 -4 6 -2 q4 -3 7 1 q4 1 2 6 q0 4 -5 4 h-9 q-5 0 -4 -2z" fill="#f4efe2" stroke="#b8ad98" stroke-width=".8"/>
+      <g class="head"><ellipse cx="10" cy="-9" rx="3.2" ry="2.6" fill="#3a2f27"/><path d="M8 -11 l-1.5 -1.4" stroke="#3a2f27" stroke-width="1.2"/></g></g>
+    <g id="an-chicken"><ellipse cx="0" cy="1" rx="4.5" ry="1.3" fill="#1d1408" opacity=".3"/>
+      <path d="M-1 0 v-3 M1.5 0 v-3" stroke="#d48a1c" stroke-width="1"/>
+      <path d="M-5 -6 q0 -4 4 -4 h3 q3 0 3 3 q0 4 -4 4 h-4 q-2 0 -2 -3z" fill="#f6efe0" stroke="#b8ad98" stroke-width=".6"/>
+      <path d="M-5 -6 l-2 -3 l2 1z" fill="#e9dfc6"/>
+      <g class="head"><circle cx="5" cy="-10" r="2.1" fill="#f6efe0" stroke="#b8ad98" stroke-width=".5"/><path d="M5 -12.6 q1 -1 2 0" fill="#c8402a" stroke="#c8402a" stroke-width="1"/><path d="M7 -10 l1.8 .6 l-1.8 .5z" fill="#e8a21c"/></g></g>
+    <g id="an-bird"><path class="wing" d="M-6 0 q3 -4 6 0 q3 -4 6 0" fill="none" stroke="#2e2a27" stroke-width="1.5" stroke-linecap="round"/></g>
+    <g id="an-goat"><ellipse cx="0" cy="1" rx="9" ry="2.3" fill="#1d1408" opacity=".32"/>
+      <path d="M-6 -2 l-.6 3 M-3 -2 l.4 3 M4 -2 l-.4 3 M6.5 -2 l.6 3" stroke="#4a3a2c" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M-8.5 -6 q-1 -5 4 -6.5 q5 -1.2 10 0 q3.5 1 3.5 5 q0 3.5 -4 3.5 h-10 q-3.5 0 -3.5 -2z" fill="#efe4d0" stroke="#8f7f68" stroke-width=".7"/>
+      <path d="M-3 -11 q3 1.5 6 0" fill="none" stroke="#d8c8ae" stroke-width="1"/>
+      <path d="M-8.5 -7 q-2.2 -1.5 -2 -3.5" fill="none" stroke="#8f7f68" stroke-width="1.1" stroke-linecap="round"/>
+      <g class="head"><path d="M7 -9 q1.5 -4.5 5 -4.5 q2.8 .4 2.6 3.4 l-1.6 3.6 q-1 1.4 -2.4 .2z" fill="#c9a985" stroke="#7d6450" stroke-width=".6"/>
+        <path d="M10 -13 q-.6 -3.4 -3.4 -4.4 M12.4 -13.2 q.4 -3.4 -1.4 -4.8" fill="none" stroke="#5a4636" stroke-width="1.1" stroke-linecap="round"/>
+        <path d="M13.2 -5 q.4 2 -1 2.6" fill="none" stroke="#efe4d0" stroke-width="1.1"/><circle cx="12.4" cy="-10.6" r=".6" fill="#2a1d10"/></g></g>
+    <g id="an-lizard"><g class="body"><path d="M-10 .4 q4 -1.6 7.5 -.6 q3 -2.6 7.5 -1.6 q2.6 .2 3.4 1.6 q-1 1.4 -3.4 1.4 q-4.4 1.4 -7.5 .2 q-4 1.2 -7.5 -1z" fill="#c9783a" stroke="#6e3a17" stroke-width=".7"/><circle cx="6.6" cy="-.6" r=".5" fill="#111"/><path d="M-1 -1.2 l1 .8 l1.2 -.8 l1 .8" fill="none" stroke="#f0c27a" stroke-width=".6"/>
+      <path d="M-4 0 l-1.5 2 M1 0 l1.5 2 M-3 -0.5 l-1.5 -2 M2 -0.8 l1.5 -2" stroke="#3f5a1f" stroke-width=".9"/></g></g>
+    <g id="an-duck"><ellipse cx="0" cy="0.4" rx="9" ry="2" fill="#2d6f96" opacity=".3"/>
+      <path d="M-8 -2 q-1.5 -4 2 -4.6 q2.5 -.4 4 1 h7 q3.4 0 3.4 2.6 q0 1.8 -2 1.8 h-12.6 q-1.8 0 -1.8 -.8z" fill="#9b7a55" stroke="#5c452c" stroke-width=".6"/>
+      <path d="M-9.6 -4.6 l2.2 1 l-.4 1.6z" fill="#5c452c"/>
+      <path d="M-3 -4.2 q4 -1.6 8 0 q-3 2 -8 0z" fill="#d9c4a2"/>
+      <path d="M-1.6 -4.4 q3 -.6 5.4 .2" fill="none" stroke="#3f6f9a" stroke-width="1.2"/>
+      <g class="head"><path d="M5.6 -3.6 q-.6 -3.4 1.4 -5.2" fill="none" stroke="#2f6b4f" stroke-width="2.6" stroke-linecap="round"/>
+        <circle cx="7.6" cy="-9.4" r="2.5" fill="#2f6b4f"/><path d="M9.6 -9.4 l3.2 .5 l-3.2 .9z" fill="#e8a21c"/><path d="M5.4 -6 h3.4" stroke="#f4efe2" stroke-width=".9"/><circle cx="8.2" cy="-10" r=".5" fill="#111"/></g>
+      <path class="ripple" d="M-11 1 q11 3 22 0" fill="none" stroke="#e8f4fa" stroke-width=".8" opacity=".7"/></g>
+    <g id="an-frog"><g class="body"><ellipse cx="0" cy="0" rx="5" ry="1.4" fill="#1d1408" opacity=".25"/>
+      <path d="M-5 -1 q0 -4 5 -4 q5 0 5 4 q-1 1 -3 1 h-4 q-3 0 -3 -1z" fill="#5f9a3a" stroke="#355a1f" stroke-width=".6"/>
+      <circle cx="-2" cy="-5" r="1.4" fill="#5f9a3a" stroke="#355a1f" stroke-width=".5"/><circle cx="2" cy="-5" r="1.4" fill="#5f9a3a" stroke="#355a1f" stroke-width=".5"/>
+      <circle cx="-2" cy="-5.2" r=".5" fill="#111"/><circle cx="2" cy="-5.2" r=".5" fill="#111"/></g></g>
+    <g id="an-heron"><ellipse cx="0" cy="0" rx="7" ry="1.6" fill="#2d6f96" opacity=".35"/>
+      <path d="M-1 0 v-12 M2 0 v-12" stroke="#8a7f6a" stroke-width="1.2"/>
+      <path d="M-8 -14 q2 -6 9 -6 q4 0 4 3 q0 4 -5 4 h-6z" fill="#c9cfd6" stroke="#7d858d" stroke-width=".6"/>
+      <g class="head"><path d="M4 -18 q3 -5 1 -10 q-1 -3 2 -4" fill="none" stroke="#c9cfd6" stroke-width="2.2" stroke-linecap="round"/>
+        <circle cx="7" cy="-32" r="2" fill="#dfe3e8" stroke="#7d858d" stroke-width=".5"/><path d="M9 -32 l6 1.2 l-6 .6z" fill="#e0b13a"/><path d="M6 -33 l-4 -1" stroke="#2e2a27" stroke-width=".8"/></g></g>
   </defs>`;
 
   /* People of many skin tones in everyday clothes; varied deterministically. */
@@ -145,9 +234,10 @@
       return `<use href="#art-cottage" transform="translate(${f1(px)} ${f1(py)}) scale(${f1(sc * flip * 100) / 100} ${sc})"/>`;
     }).join('');
     const sites = scene.hotspots.filter((h) => h.kind === 'site').map((h) => {
-      const [px, py] = P(h.x, h.y);
-      // The hotspot (ring + label) sits at h.x/h.y; the structure stands just below it.
-      return `<g class="site" data-site="${h.id}" data-state="site" transform="translate(${f1(px)} ${f1(py + 52 * k)}) scale(${k})">
+      // The structure stands at `ground` if given, else just below the hotspot ring.
+      const [px, py] = h.ground ? P(h.ground[0], h.ground[1]) : (([x, y]) => [x, y + 52 * k])(P(h.x, h.y));
+      if (h.id === 'waterPoint') return waterPointSite(h, px, py, k);
+      return `<g class="site" data-site="${h.id}" data-state="site" transform="translate(${f1(px)} ${f1(py)}) scale(${k})">
         <g class="st-site">
           <ellipse rx="50" ry="12" class="footprint"/>
           <use href="#art-station" opacity=".2"/>
@@ -167,14 +257,49 @@
         </g>
       </g>`;
     }).join('');
+    const sys = scene.system || {};
+    const pipe = sys.pipe ? `<path class="pipeline" data-state="hidden" d="${smoothPath(sys.pipe)}" stroke-width="${f1(3.2 * k)}"/><path class="pipeflow" d="${smoothPath(sys.pipe)}" stroke-width="${f1(2.4 * k)}"/>` : '';
+    const gutter = sys.gutter ? `<path class="gutter" data-state="hidden" d="M${sys.gutter.map(([x, y]) => P(x, y).map(f1).join(' ')).join(' L')}" stroke-width="${f1(3 * k)}"/>` : '';
+    const extras = (sys.extras || []).map((e) => { const [px, py] = P(e.at[0], e.at[1]); return `<g class="sys-extra" data-state="hidden" transform="translate(${f1(px)} ${f1(py)}) scale(${f1(k * (e.scale || 1) * 100) / 100})"><use href="#art-${e.art}"/></g>`; }).join('');
     return `<svg class="scene" viewBox="${f1(c.x)} ${f1(c.y)} ${f1(c.w)} ${f1(c.h)}" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
       ${DEFS}
       <image href="${scene.image}" x="0" y="0" width="${scene.w}" height="${scene.h}" preserveAspectRatio="none"/>
       <g class="routes">${routesMarkup()}</g>
+      <g class="system">${pipe}${gutter}${extras}</g>
+      <g class="animals">${animalsMarkup()}</g>
       <g class="cottages">${cottages}</g>
       <g class="sites">${sites}</g>
       <g class="walkers"></g>
     </svg>`;
+  }
+
+  /* The water point: staked site → construction (frame or drilling rig, workers, supplies) →
+     finished structure. Activation effects attach to the same group.                    */
+  function waterPointSite(h, px, py, k) {
+    const art = (scene.system && scene.system.art) || 'tapstand';
+    const crew = art === 'handpump' ? '<use href="#art-rig" class="rising"/>' : `<use href="#art-frame" transform="scale(.8)"/><use href="#art-${art}" class="rising"/>`;
+    const kk = f1(k * 1.35 * 100) / 100; // water points read better a little larger than the station
+    return `<g class="site wp" data-site="waterPoint" data-state="site" data-art="${art}" transform="translate(${f1(px)} ${f1(py)}) scale(${kk})">
+      <g class="st-site"><ellipse rx="34" ry="10" class="footprint"/>
+        ${[[-30, 4], [30, -2], [-4, 9]].map(([x, y]) => `<g transform="translate(${x} ${y})"><path d="M0 0 V-20" stroke="#7a4e2b" stroke-width="2"/><path d="M0 -20 L10 -16.8 L0 -13.6 Z" fill="#f2c118" class="flag"/></g>`).join('')}</g>
+      <g class="st-building"><use href="#art-piles" transform="scale(.8)"/>${crew}
+        <use href="#art-worker" transform="translate(-40 6)" style="${look(2)}"/><use href="#art-worker" transform="translate(42 7) scale(-1 1)" style="${look(5)}"/>
+        <g class="dust"><circle cx="-14" cy="2" r="5"/><circle cx="12" cy="0" r="4"/><circle cx="0" cy="4" r="6"/></g></g>
+      <g class="st-built"><circle r="56" cy="-14" fill="url(#wv-glow)" class="glow"/><use href="#art-${art}"/>
+        <g class="splash"><circle cx="-14" cy="-14" r="1.6"/><circle cx="-12" cy="-10" r="1.3"/><circle cx="-14" cy="-6" r="1.5"/></g></g>
+    </g>`;
+  }
+
+  /* ---- Animals ---------------------------------------------------------------------------
+     Each is a <g> placed in painting coordinates; CSS animates an inner group (graze, peck,
+     swim, hop, dart, fly…) with long, staggered pauses so the village feels calm.      */
+  function animalsMarkup() {
+    return (scene.animals || []).map((a, i) => {
+      const [px, py] = P(a.x, a.y); const k = (a.s || 1) * 1.7 * (scene.walkerScale ? scene.walkerScale[0] : 1);
+      const range = a.range ? `--range:${a.range}px;` : '';
+      return `<g class="animal an-${a.kind} a-${a.anim}" transform="translate(${f1(px)} ${f1(py)}) scale(${f1(k * (a.flip ? -1 : 1) * 100) / 100} ${f1(k * 100) / 100})">
+        <g class="move" style="${range}animation-delay:${a.delay || (i * 0.9) % 4}s"><use href="#an-${a.kind}" style="animation-delay:${a.delay || (i * 0.9) % 4}s"/></g></g>`;
+    }).join('');
   }
 
   /* ---- Routes: smooth curves through the waypoints painted roads suggest --------------------
@@ -227,7 +352,7 @@
           <span class="node-chip">${NODE_ICON[h.res]}${CRACKS[h.res]}</span><span class="hitcount" aria-hidden="true"></span>
           <span class="pips" aria-hidden="true"></span><span class="sr-only">${r.verb}</span></button>`;
       }
-      return `<button type="button" class="hs hs-${h.kind}" data-act="inspect" data-id="${h.id}" style="left:${f1(x)}%;top:${f1(y)}%">
+      return `<button type="button" class="hs hs-${h.kind}${h.below ? ' hs-below' : ''}" data-act="inspect" data-id="${h.id}" style="left:${f1(x)}%;top:${f1(y)}%">
         <span class="ring" aria-hidden="true"></span><span class="tag">${esc(h.label)}</span></button>`;
     }).join('');
   }
@@ -336,6 +461,9 @@
     const key = plan.map((p) => p.id + ':' + ((p.route.walkers || 1) + (p.extra || 0))).join('|');
     if (key !== planKey) { planKey = key; buildWalkers(plan); }
     els.svg.querySelectorAll('.site').forEach((g) => g.setAttribute('data-state', s.builds[g.dataset.site] || 'site'));
+    const sysState = s.flags.systemActive ? 'active' : s.builds.waterPoint === 'built' ? 'built' : 'hidden';
+    els.svg.querySelectorAll('.pipeline, .gutter, .sys-extra').forEach((g) => { if (!g.classList.contains('flowing')) g.setAttribute('data-state', sysState); });
+    els.svg.classList.toggle('system-active', !!s.flags.systemActive);
     els.svg.classList.toggle('watching', !!ui.watching);
     const targets = ui.targets || [];
     els.hs.querySelectorAll('.hs').forEach((b) => {
@@ -347,10 +475,10 @@
       b.classList.toggle('target', targets.indexOf(id) >= 0);
       b.classList.toggle('active', ui.selected === id);
       b.classList.toggle('built', h.kind === 'site' && s.builds[id] === 'built');
-      const state = h.kind === 'site' ? ` — ${s.builds[id] === 'built' ? 'built' : s.builds[id] === 'building' ? 'under construction' : 'construction site'}` : seen ? ' — visited' : '';
+      const state = h.kind === 'site' ? `, ${s.builds[id] === 'built' ? 'built' : s.builds[id] === 'building' ? 'under construction' : 'construction site'}` : seen ? ', visited' : '';
       b.setAttribute('aria-label', h.label + state);
       b.setAttribute('aria-pressed', ui.selected === id ? 'true' : 'false');
-      if (h.kind === 'site') b.querySelector('.tag').textContent = s.builds[id] === 'built' ? D().builds[id].name : h.label;
+      if (h.kind === 'site') b.querySelector('.tag').textContent = s.builds[id] === 'built' ? WV.sim.buildDef(s, id).name : h.label;
     });
     els.hs.querySelectorAll('.node').forEach((b) => {
       const h = scene.hotspots.find((x) => x.id === b.dataset.id); const left = s.nodes[h.id].charges;
@@ -410,6 +538,22 @@
     if (lastState) update(lastState, lastUi);
   }
 
+  /* ---- Activation effects (decoration only) ------------------------------------------------- */
+  function systemFx(effect) {
+    if (!els.svg) return;
+    const wp = els.svg.querySelector('.site.wp');
+    const pulse = (el, cls, ms) => { if (!el) return; el.classList.remove(cls); void el.getBBox; el.classList.add(cls); setTimeout(() => el.classList.remove(cls), ms); };
+    if (effect === 'flow') { const p = els.svg.querySelector('.pipeflow'); pulse(p, 'tracing', reduced ? 200 : 3000); }
+    if (effect === 'gutter') { const g = els.svg.querySelector('.gutter'); pulse(g, 'lit', 2400); }
+    if (effect === 'pump' || effect === 'tap') pulse(wp, effect === 'pump' ? 'pumping' : 'pouring', 900);
+    if (effect === 'rain' && els.fx && !reduced) {
+      const h = scene.hotspots.find((x) => x.id === 'waterPoint'); const [x, y] = V(h.ground[0], h.ground[1] - 6);
+      const el = document.createElement('div'); el.className = 'rainfx'; el.style.left = f1(x) + '%'; el.style.top = f1(y) + '%';
+      el.innerHTML = Array.from({ length: 22 }, (_, i) => `<i style="left:${(i * 37) % 120 - 60}px;animation-delay:${((i * 13) % 10) / 10}s"></i>`).join('');
+      els.fx.appendChild(el); setTimeout(() => el.remove(), 2600);
+    }
+  }
+
   function celebrate(id) {
     const h = scene.hotspots.find((x) => x.id === id); if (!h || !els.fx) return;
     const [x, y] = V(h.x, h.y);
@@ -435,7 +579,7 @@
   }
   function setPreviewAfter(on) { previewAfter = !!on; planKey = ''; if (lastState) update(lastState, lastUi); }
   const api = {
-    mount, update, fit, floatText, celebrate, hitNode, breakNode, resetNode, focusHotspot, scrollToHotspot, setReducedMotion, stopWalkers,
+    mount, update, fit, floatText, celebrate, systemFx, hitNode, breakNode, resetNode, focusHotspot, scrollToHotspot, setReducedMotion, stopWalkers,
     onMount: (fn) => mountHooks.push(fn), rebuildRoutes, setPreviewAfter, smoothPath,
     get scene() { return scene; }, get svg() { return els.svg; }, get box() { return els.box; },
     walkerPositions: () => walkers.map((w) => ({ route: w.el.dataset.route, transform: w.el.getAttribute('transform') })),

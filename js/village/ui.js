@@ -166,8 +166,12 @@
           <button type="button" class="btn ${s.flags.walkWatched ? '' : 'primary'} block" data-act="watch-walk">${icon('walk')} ${ui.watching ? 'Watching the morning walk…' : s.flags.walkWatched ? 'Watch the walk again' : 'Watch the morning walk'}</button></div>`;
     } else if (h.kind === 'committee') {
       const members = D().committeeRoles.map((r) => `<li>${portrait(r, 40)}<span><b>${esc(s.people[r].name)}</b><small>${esc(D().roles.find((x) => x.id === r).title)}</small></span></li>`).join('');
+      const plan = s.level >= 3 && !s.flags.systemActive;
       extra = `<div class="sec"><ul class="members">${members}</ul>
-        <button type="button" class="btn ${s.flags.committeeMet ? '' : 'primary'} block" data-act="meet-committee">${icon('people')} ${s.flags.committeeMet ? 'Talk with the committee again' : 'Meet the committee'}</button></div>`;
+        ${plan ? `<button type="button" class="btn primary block" data-act="plan-meeting">${icon('people')} ${s.tech ? 'Review the project plan' : s.flags.planningMet ? 'Choose the water system' : 'Plan the water project'}</button>` : ''}
+        <button type="button" class="btn ${s.flags.committeeMet || plan ? '' : 'primary'} block" data-act="meet-committee">${icon('people')} ${s.flags.committeeMet ? 'Talk with the committee again' : 'Meet the committee'}</button></div>`;
+    } else if (h.kind === 'site' && id === 'waterPoint') {
+      extra = waterPointSheet(s, ui);
     } else if (h.kind === 'site') {
       const b = D().builds[id]; const st = s.builds[id];
       if (st === 'built') {
@@ -184,8 +188,77 @@
       }
     }
     const text = h.kind === 'site' && s.builds[id] === 'built' ? '' : `<p>${fill(p.text, s)}</p>`;
-    return `<header class="sheet-head"><div><p class="kicker">${kicker}</p><h2 id="sheetTitle" tabindex="-1">${esc(h.kind === 'site' && s.builds[id] === 'built' ? D().builds[id].name : p.title)}</h2></div>${closeBtn('close-sheet')}</header>
+    const title = id === 'waterPoint' && s.builds[id] === 'built' ? S().buildDef(s, id).name : h.kind === 'site' && s.builds[id] === 'built' ? D().builds[id].name : p.title;
+    return `<header class="sheet-head"><div><p class="kicker">${kicker}</p><h2 id="sheetTitle" tabindex="-1">${esc(title)}</h2></div>${closeBtn('close-sheet')}</header>
       <div class="sheet-body">${text}${p.note ? `<p class="note">${icon('eye')}<span>${fill(p.note, s)}</span></p>` : ''}${extra}</div>`;
+  };
+
+  /* ---- Level 3: the water point ------------------------------------------------------------- */
+  const TECH_ICON = {
+    gravityFed: '<svg viewBox="0 0 40 40" class="techicon" aria-hidden="true"><path d="M3 10 q8 -6 14 2 q6 8 20 4" fill="none" stroke="#8f887a" stroke-width="3"/><path d="M4 10 q8 -6 14 2 q6 8 18 4" fill="none" stroke="#4a9ccc" stroke-width="1.6" stroke-dasharray="2 3"/><rect x="28" y="16" width="5" height="16" rx="1" fill="#e6dfcf" stroke="#8f887a"/><path d="M28 21 h-4 v2" stroke="#4d5a63" stroke-width="1.6" fill="none"/><rect x="22" y="32" width="14" height="3" rx="1" fill="#cfc8b8"/><path d="M2 12 l6 -6 l6 5" fill="#9aa86a"/></svg>',
+    drilledWell: '<svg viewBox="0 0 40 40" class="techicon" aria-hidden="true"><ellipse cx="20" cy="34" rx="14" ry="4" fill="#cfc8b8" stroke="#8f887a"/><rect x="17" y="12" width="6" height="21" rx="1" fill="#2f6b5a"/><path d="M22 14 L34 8" stroke="#1d4237" stroke-width="2" stroke-linecap="round"/><path d="M17 20 h-5 v3" stroke="#24584a" stroke-width="2" fill="none"/><path d="M20 35 v4" stroke="#4a9ccc" stroke-width="2" stroke-dasharray="1.5 1.5"/></svg>',
+    rainwater: '<svg viewBox="0 0 40 40" class="techicon" aria-hidden="true"><path d="M3 14 L14 5 L25 14 Z" fill="#5d6b78"/><path d="M4 15 H25 V17 H4z" fill="#8f887a"/><path d="M24 16 q3 0 3 4 v4" fill="none" stroke="#8f887a" stroke-width="2"/><rect x="22" y="22" width="14" height="14" rx="3" fill="#d9d3c4" stroke="#8f887a"/><path d="M8 4 v4 M12 2 v4 M16 4 v4" stroke="#4a9ccc" stroke-width="1.3"/></svg>',
+  };
+  U.techIcon = (id) => TECH_ICON[id] || `<span class="techicon">${icon('can')}</span>`;
+
+  function waterPointSheet(s, ui) {
+    const st = s.builds.waterPoint; const tech = D().technologies[s.tech]; const b = S().buildDef(s, 'waterPoint');
+    if (st === 'site') {
+      const c = S().canBuild(s, 'waterPoint');
+      return `<div class="sec"><h3 class="sec-t">${esc(tech.name)}</h3>
+        <ul class="costs">${costRow(s, b.cost)}</ul>
+        <p class="muted small">Provided by the partner team: ${esc(tech.partnerProvides.join(', '))}.</p>
+        ${!c.ok ? `<p class="note warn">${icon('flag')}<span>${esc(c.reason)}${c.short ? ' The gathering spots have filled up again.' : ''}</span></p>` : ''}
+        <button type="button" class="btn primary block" data-act="build" data-id="waterPoint" ${c.ok ? '' : 'aria-disabled="true"'}>${icon('hammer')} Build with ${esc(s.people[b.builder].name)} and the team</button></div>`;
+    }
+    if (st === 'building') {
+      return `<div class="sec"><p class="note">${icon('hammer')}<span>${esc(s.people.engineer.name)}, ${esc(s.people[b.builder].name)} and neighbours are building the ${esc(tech.structureName.toLowerCase())}…</span></p></div>`;
+    }
+    if (!s.flags.systemActive) {
+      const steps = S().activationSteps(s); const next = S().nextActivation(s);
+      const rows = steps.map((x) => { const done = s.activation.indexOf(x.id) >= 0; return `<li class="${done ? 'done' : next && next.id === x.id ? 'now' : ''}">${icon(done ? 'check' : 'dot')}<span>${esc(done ? x.done : x.label)}</span></li>`; }).join('');
+      const reps = next && next.reps ? next.reps : 0; const n = ui.pumpCount || 0;
+      return `<div class="sec built-card">${icon('check', 'ic-lg')}<div><b>${esc(tech.structureName)} built</b><p>Now bring it to life, step by step.</p></div></div>
+        <div class="sec"><h3 class="sec-t">Activate the system</h3><ol class="steps">${rows}</ol>
+        ${reps ? `<div class="canfill" aria-hidden="true"><i style="height:${(n / reps) * 100}%"></i></div><p class="muted small" role="status">Strokes: ${n} of ${reps}</p>` : ''}
+        ${next ? `<button type="button" class="btn primary block" data-act="activate" ${ui.activating ? 'aria-disabled="true"' : ''}>${icon('can')} ${ui.activating ? 'Working…' : reps ? `Pump (${n}/${reps})` : esc(next.label)}</button>` : ''}</div>`;
+    }
+    const m = S().metrics(s);
+    return `<div class="sec built-card">${icon('check', 'ic-lg')}<div><b>Water is flowing</b><p>${esc(tech.short)}</p></div></div>
+      <dl class="facts"><div><dt>People served</dt><dd>${fmt(s.peopleWithWater)}</dd></div><div><dt>Round trip</dt><dd>${m.roundTripAfter} min <small>(was ${s.baseline.roundTripMin})</small></dd></div>
+      <div><dt>Time saved</dt><dd>≈ ${fmt(m.hoursSavedPerDay)} h a day</dd></div><div><dt>Germ test</dt><dd><span class="result ok">${icon('check')}Safe</span></dd></div></dl>
+      <p class="note">${icon('wrench')}<span><b>${esc(s.people.caretaker.name)}</b>, caretaker: ${esc(tech.maintenanceLine)}</span></p>`;
+  }
+
+  U.planning = function (s) {
+    const rec = S().techChoices(s).find((c) => c.selectable);
+    return `${banner(s)}
+      <div class="dlg-head"><div><p class="kicker">Planning meeting · ${esc(s.name)}</p><h2 id="dlgTitle">From findings to a plan</h2></div>${closeBtn()}</div>
+      <div class="dlg-body">
+        <div class="person-line">${portrait('chair', 48)}<p><b>${esc(s.people.chair.name)}</b>: “Your tests showed what we suspected: our water looks fine but makes people sick. Now let’s choose what to build.”</p></div>
+        <div class="person-line">${portrait('engineer', 48)}<p><b>${esc(s.people.engineer.name)}</b>: “The surveys narrowed it down. ${rec ? `A <b>${esc(rec.name.toLowerCase())}</b> fits ${esc(s.name)} best.` : ''} The committee decides.”</p></div>
+        <div class="person-line">${portrait('caretaker', 48)}<p><b>${esc(s.people.caretaker.name)}</b>: “Whatever we build, I’ll learn to keep it running.”</p></div>
+      </div>
+      <div class="dlg-foot"><button type="button" class="btn primary" data-act="open-tech">${icon('chev-right')} See the options</button></div>`;
+  };
+
+  U.techCards = function (s, msg) {
+    const cards = S().techChoices(s);
+    const card = (c) => {
+      const t = D().technologies[c.id]; const cost = t.cost;
+      const served = c.selectable ? Math.min(s.population, S().capacityPeople({ ...s, tech: c.id })) : null;
+      return `<li class="tcard ${c.selectable ? 'pick' : 'alt'} ${s.tech === c.id ? 'chosen' : ''}">
+        <div class="tc-top">${U.techIcon(c.id)}<div><b>${esc(c.name)}</b><span class="chip ${c.selectable ? 'ok' : 'neutral'}">${icon(c.selectable ? 'check' : 'dot')}${c.selectable ? 'Recommended' : esc({ part: 'Part of the plan', possible: 'Possible', complement: 'Helps alongside', later: 'Later' }[c.status] || 'Possible')}</span></div></div>
+        <p>${esc(t.short)}</p>
+        ${c.selectable ? `<dl class="tc-facts"><div><dt>Build</dt><dd>${cost.wood} wood · ${cost.stone} stone + ${esc(t.partnerProvides.slice(0, 2).join(', '))} from the partner team</dd></div>
+          <div><dt>Access</dt><dd>About ${fmt(served)} people, ${t.afterRoundTripMin}-minute round trip</dd></div>
+          <div><dt>Upkeep</dt><dd>${esc(t.maintenance)}</dd></div></dl>`
+          : `<p class="muted small">${esc(c.reason)}</p>`}
+        <button type="button" class="btn ${c.selectable ? 'primary' : ''} block" data-act="choose-tech" data-id="${c.id}">${c.selectable ? `${icon('check')} Choose this` : 'Ask about this'}</button></li>`;
+    };
+    return `<div class="dlg-head"><div><p class="kicker">Choose the water system · ${esc(s.name)}</p><h2 id="dlgTitle">What will we build?</h2></div>${closeBtn()}</div>
+      <div class="dlg-body">${msg ? `<div class="person-line">${portrait('engineer', 44)}<p><b>${esc(s.people.engineer.name)}</b>: “${esc(msg)}”</p></div>` : `<p class="muted">Only options that suit ${esc(s.name)} are shown.</p>`}
+        <ul class="tcards">${cards.map(card).join('')}</ul></div>`;
   };
 
   /* ---- Dialogs -------------------------------------------------------------------------- */
@@ -384,6 +457,23 @@
 
   U.levelComplete = function (s) {
     const lvl = S().levelDef(s); const m = S().metrics(s);
+    if (lvl.id === 3) {
+      const tech = D().technologies[s.tech]; const mm = S().metrics(s);
+      return `${banner(s, 'celebrate', `<span class="big-can">${icon('can')}</span>`)}
+        <div class="dlg-head"><div><p class="kicker">Level 3 complete · ${esc(s.name)}</p><h2 id="dlgTitle">Water Project Activated!</h2></div></div>
+        <div class="dlg-body">
+          <p class="hero-line">The new <b>${esc(tech.name.toLowerCase())}</b> is running and tested safe.</p>
+          <ul class="summary">
+            <li><b>${fmt(s.peopleWithWater)}</b><span>of ${fmt(s.population)} people now have safe water close to home</span></li>
+            <li><b>${s.baseline.roundTripMin} → ${mm.roundTripAfter} min</b><span>round trip for water</span></li>
+            <li><b>≈ ${fmt(mm.hoursSavedPerDay)} h</b><span>given back to families every day</span></li>
+          </ul>
+          <p><b>New infrastructure:</b> ${esc(tech.structureName)}${s.tech === 'gravityFed' ? ', spring box and buried pipeline' : s.tech === 'rainwater' ? ', gutters and first-flush diverter' : ', sealed borehole and concrete apron'}.</p>
+          <p><b>Who keeps it running:</b> ${esc(s.people.caretaker.name)} and the water committee. ${esc(tech.maintenanceLine)}</p>
+          <p class="muted">Next: <b>${esc(lvl.next)}</b>. Share the water fairly, keep it safe at home, and plan for growth.</p>
+        </div>
+        <div class="dlg-foot"><button type="button" class="btn primary" data-act="next-level">Continue ${icon('chev-right')}</button></div>`;
+    }
     if (lvl.id === 2) {
       const sc = S().sceneOf(s); const G = D().results.germ;
       const rec = S().technologyOptions(s).find((c) => c.status === 'recommended');
