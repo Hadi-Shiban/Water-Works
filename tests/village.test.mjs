@@ -503,3 +503,100 @@ test('animals are placed inside each scene, 3–6 per scenario, of the requested
     sc.animals.filter((a) => a.anim !== 'fly').forEach((a) => spots.forEach((h) => assert.ok(Math.hypot(a.x - h.x, a.y - h.y) > 3, `${id}: ${a.kind} sits on hotspot ${h.id}`)));
   }
 });
+
+/* ---- Regression: resource softlock (spots regrow; saves heal; every build is reachable) ------ */
+const MS = D.regrowMs;
+function breakNode(s, id, now) { let h = 0, r; do { r = sim.strike(s, id, h, now); assert.ok(r.ok, r.reason); h = r.hits; s = r.state; } while (!r.done); return { s, amount: r.amount }; }
+
+test('regression 1: stone can be gathered again after the spot regrows', () => {
+  let s = village('Kesi Hill', 1, 'plateau'); const t0 = 1e12;
+  for (let i = 0; i < 3; i++) s = breakNode(s, 'stone1', t0).s;
+  assert.equal(s.nodes.stone1.charges, 0); assert.equal(sim.strike(s, 'stone1', 0, t0).ok, false);
+  assert.equal(sim.regrow(s, t0 + MS - 1).changed, false, 'not before the cooldown');
+  s = sim.regrow(s, t0 + MS).state; assert.equal(s.nodes.stone1.charges, 1);
+  s = breakNode(s, 'stone1', t0 + MS).s; assert.equal(s.resources.stone, 8);
+  s = sim.regrow(s, t0 + 10 * MS).state; assert.equal(s.nodes.stone1.charges, 3, 'fully regrown, never above max');
+  assert.equal(s.nodes.stone1.regrowAt, null);
+  assert.ok(MS >= 5000 && MS <= 8000, 'cooldown is 5–8 s');
+});
+
+test('regression 2: three hits award exactly one reward, even with a stale or bogus hit count', () => {
+  let s = village('Kesi Hill', 1, 'highland');
+  const r1 = sim.strike(s, 'stone1', 0, 0), r2 = sim.strike(s, 'stone1', 1, 0), r3 = sim.strike(s, 'stone1', 2, 0);
+  assert.equal(r1.state.resources.stone + r2.state.resources.stone, 0);
+  assert.equal(r3.state.resources.stone, 2); assert.equal(r3.state.nodes.stone1.charges, 2);
+  assert.equal(sim.strike(s, 'stone1', 99, 0).state.resources.stone, 2, 'one reward per break');
+});
+
+test('regression 3: every mandatory Level 1–3 structure is buildable in every scenario, from zero', () => {
+  for (const id of SCENARIOS) {
+    let s = finishLevel2(id);
+    s.resources = { wood: 0, stone: 0 }; for (const k in s.nodes) s.nodes[k] = { charges: 0, regrowAt: null }; // worst case
+    s = sim.deserialize(sim.serialize(s)); // the empty spots heal on load
+    s = play(s, sim.planMeeting); s = play(s, (x) => sim.chooseTech(x, D.scenarios[id].primaryTech));
+    const need = D.technologies[s.tech].cost; let now = 2e12, secs = 0;
+    const nodes = D.scenes[D.scenarios[id].scene].hotspots.filter((h) => h.kind === 'node');
+    while (s.resources.wood < need.wood || s.resources.stone < need.stone) {
+      s = sim.regrow(s, now).state;
+      const n = nodes.find((h) => s.nodes[h.id].charges > 0 && s.resources[h.res] < need[h.res]);
+      if (n) { s = breakNode(s, n.id, now).s; now += 1500; secs += 1.5; } else { now += 1000; secs += 1; }
+      assert.ok(secs < 120, `${id}: stuck gathering`);
+    }
+    assert.ok(secs <= 60, `${id}: ${secs}s of gathering from zero for ${JSON.stringify(need)}`);
+    s = play(s, (x) => sim.startBuild(x, 'waterPoint'));
+    assert.ok(s.resources.wood >= 0 && s.resources.stone >= 0);
+  }
+});
+
+test('regression 4: recovering from zero wood and zero stone in Level 1', () => {
+  let s = village('Kesi Hill', 2, 'wetland'); s = sim.setFlag(s, 'committeeMet'); let now = 5e11;
+  for (const k in s.nodes) s.nodes[k] = { charges: 0, regrowAt: now };
+  for (let i = 0; i < 40 && (s.resources.wood < 4 || s.resources.stone < 3); i++) {
+    s = sim.regrow(s, now).state;
+    for (const k of Object.keys(s.nodes)) if (s.nodes[k].charges > 0) s = breakNode(s, k, now).s;
+    now += 1000;
+  }
+  s = play(s, (x) => sim.startBuild(x, 'lab'));
+  assert.equal(s.builds.lab, 'building');
+});
+
+test('regression 5: reloading while a spot regrows keeps the timer, and old saves heal', () => {
+  let s = village('Kesi Hill', 1, 'highland'); const t0 = 3e12;
+  s = breakNode(s, 'wood1', t0).s;
+  const back = sim.deserialize(sim.serialize(s));
+  assert.equal(back.nodes.wood1.regrowAt, t0 + MS, 'timer survives save/load');
+  assert.equal(sim.regrow(back, t0 + 30 * MS).state.nodes.wood1.charges, 3, 'time away still counts');
+  // a save from before regrowth: depleted, no timer, short of stone (the reported softlock)
+  const old = JSON.parse(sim.serialize(village('Old Save', 1, 'plateau')));
+  Object.assign(old, { level: 3, completedLevels: [1, 2], resources: { wood: 8, stone: 9 }, tech: 'drilledWell' });
+  old.builds.lab = 'built'; old.flags.planningMet = true;
+  for (const k in old.nodes) old.nodes[k] = { charges: 0 };
+  const healed = sim.regrow(sim.deserialize(JSON.stringify(old)), Date.now()).state;
+  assert.ok(Object.values(healed.nodes).every((n) => n.charges >= 1), 'depleted spots come back on load');
+  const r = sim.deserialize(JSON.stringify({ ...old, resources: { wood: -3, stone: 'x' } }));
+  assert.deepEqual(r.resources, { wood: 0, stone: 0 }, 'resources can never load negative or invalid');
+});
+
+test('regression 6: all three scenarios complete Levels 1–3 with no resource softlock, spending exactly once', () => {
+  for (const id of SCENARIOS) {
+    let s = village('Full Run', 4, id); let now = 4e12; const spent = { wood: 0, stone: 0 }, got = { wood: 0, stone: 0 };
+    const nodes = D.scenes[D.scenarios[id].scene].hotspots.filter((h) => h.kind === 'node');
+    const gatherTo = (need) => { for (let i = 0; i < 200 && (s.resources.wood < need.wood || s.resources.stone < need.stone); i++) {
+      s = sim.regrow(s, now).state; const n = nodes.find((h) => s.nodes[h.id].charges > 0 && s.resources[h.res] < need[h.res]);
+      if (n) { const b = breakNode(s, n.id, now); s = b.s; got[n.res] += b.amount; } now += 1500; } };
+    const build = (bid) => { const c = sim.buildDef(s, bid).cost; gatherTo(c); const before = { ...s.resources }; s = play(s, (x) => sim.startBuild(x, bid));
+      spent.wood += before.wood - s.resources.wood; spent.stone += before.stone - s.resources.stone; assert.deepEqual(before.wood - s.resources.wood, c.wood); s = play(s, (x) => sim.finishBuild(x, bid)); };
+    for (const h of ['source', 'committee', 'homes']) s = play(s, (x) => sim.inspect(x, h));
+    s = sim.setFlag(sim.setFlag(s, 'committeeMet'), 'walkWatched');
+    gatherTo({ wood: 6, stone: 4 }); build('lab'); s = play(s, sim.completeLevel);
+    s = play(s, (x) => sim.collectSample(x, 'source')); s = play(s, sim.openLab); s = benchWork(s); s = surveyAll(s);
+    s = play(s, sim.reviewNotes); s = play(s, sim.reviewOptions); s = play(s, sim.completeLevel);
+    s = play(s, sim.planMeeting); s = play(s, (x) => sim.chooseTech(x, D.scenarios[id].primaryTech)); s = play(s, (x) => sim.inspect(x, 'waterPoint'));
+    build('waterPoint');
+    for (const st of sim.activationSteps(s)) s = play(s, (x) => sim.activate(x, st.id));
+    s = play(s, sim.completeLevel);
+    assert.equal(s.level, 4, id);
+    assert.equal(s.resources.wood, got.wood - spent.wood, `${id}: wood balance exact`);
+    assert.equal(s.resources.stone, got.stone - spent.stone, `${id}: stone balance exact`);
+  }
+});

@@ -130,7 +130,16 @@ async function playCampaign(scenario, vp) {
     await sleep(620);
   }
   check(await S('s.gathered.wood >= 6 && s.gathered.stone >= 4'), 'gathered 6 wood and 4 stone');
-  check(await evaluate('document.querySelectorAll("#hotspots .node.empty").length === 4'), 'cleared nodes show as empty');
+  check(await evaluate('document.querySelectorAll("#hotspots .node.regrowing").length >= 1'), 'gathered spots show they are growing back');
+  if (vp[0] >= 1000) {
+    const emptyId = await S('Object.keys(s.nodes).find((k) => s.nodes[k].charges === 0) || null');
+    if (emptyId) {
+      check(await evaluate(`document.querySelector('#hotspots [data-id="${emptyId}"]').classList.contains('empty')`), 'an emptied spot is marked "growing back"');
+      await go(`${BASE}/index.html`); await click('#continueBtn'); await sleep(300); // reload mid-regrowth
+      await sleep(6800);
+      check(await S(`s.nodes['${emptyId}'].charges >= 1`), 'after reloading, the emptied spot regrows within ~6 s');
+    }
+  }
 
   await click('#hotspots [data-id="lab"]'); await sleep(200);
   await click('#sheet [data-act="build"]'); await sleep(900);

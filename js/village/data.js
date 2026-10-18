@@ -349,6 +349,9 @@
       },
     },
 
+    /* Gathering spots regrow one charge every regrowMs (wall-clock, so it carries across reloads). [game] */
+    regrowMs: 6000,
+
     resources: {
       wood: { name: 'Wood', verb: 'Gather wood', from: 'fallen branches and offcuts' },
       stone: { name: 'Stone', verb: 'Gather stone', from: 'loose stones' },

@@ -135,6 +135,7 @@
   }
   function enterGame() {
     ui.hits = {}; ui.breaking = {};
+    { const r = sim.regrow(s, Date.now()); if (r.changed) { s = r.state; persist(); } }
     $('start').hidden = true; $('game').hidden = false;
     audio.start(); // inside the click that started or continued the game
     scene.mount($('stage'), s, { reducedMotion: prefs.reducedMotion });
@@ -163,8 +164,8 @@
      short break animation ends, so rapid clicks can never award twice.               */
   function gather(id) {
     if (ui.breaking[id]) return;
-    const r = sim.strike(s, id, ui.hits[id] || 0);
-    if (!r.ok) { toast('Nothing left here', r.reason); return; }
+    const r = sim.strike(s, id, ui.hits[id] || 0, Date.now());
+    if (!r.ok) { toast('Growing back', r.reason); return; }
     const res = D.resources[r.res];
     if (!r.done) {
       ui.hits[id] = r.hits;
@@ -430,6 +431,13 @@
     document.documentElement.classList.toggle('reduce-motion', !!prefs.reducedMotion);
     scene.setReducedMotion(prefs.reducedMotion);
   }
+
+  /* Regrowth tick: once a second, give depleted spots their charges back when due. */
+  setInterval(() => {
+    if (!s || $('game').hidden) return;
+    const r = sim.regrow(s, Date.now());
+    if (r.changed) { s = r.state; persist(); scene.update(s, { ...ui, targets: targetsFor(s) }); }
+  }, 1000);
 
   /* ---- Boot ------------------------------------------------------------------------------------------ */
   document.querySelector('.start-art').style.backgroundImage = `url('${D.startArt}')`;

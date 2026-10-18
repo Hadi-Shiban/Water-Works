@@ -489,7 +489,8 @@
       const hits = (ui.hits && ui.hits[h.id]) || 0; const need = WV.sim.HITS_TO_BREAK;
       if (!b.classList.contains('breaking')) setHits(b, hits);
       const r = D().resources[h.res];
-      b.setAttribute('aria-label', left > 0 ? `${r.verb}: tap ${need} times (+${h.yield}).${hits ? ` ${hits} of ${need} hits.` : ''} ${left} of ${h.charges} left here.` : `${r.name}: this spot is cleared for now.`);
+      b.classList.toggle('regrowing', left < h.charges);
+      b.setAttribute('aria-label', left > 0 ? `${r.verb}: tap ${need} times (+${h.yield}).${hits ? ` ${hits} of ${need} hits.` : ''} ${left} of ${h.charges} ready here${left < h.charges ? ', more growing back' : ''}.` : `${r.name}: growing back, ready again in a few seconds.`);
     });
   }
 

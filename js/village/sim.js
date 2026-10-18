@@ -66,7 +66,7 @@
     const people = {};
     data.roles.forEach((role, i) => (people[role.id] = { name: names[i] }));
     const nodes = {};
-    scene.hotspots.filter((h) => h.kind === 'node').forEach((h) => (nodes[h.id] = { charges: h.charges }));
+    scene.hotspots.filter((h) => h.kind === 'node').forEach((h) => (nodes[h.id] = { charges: h.charges, regrowAt: null }));
     const builds = {};
     Object.keys(data.builds).forEach((id) => (builds[id] = 'site'));
 
@@ -116,7 +116,15 @@
     const spare = shuffle(data.namePool, rng(s.seed)).filter((n) => used.indexOf(n) < 0);
     data.roles.forEach((role) => { if (!s.people[role.id]) { s.people[role.id] = { name: spare.shift() || 'Sam' }; } });
     const scene = data.scenes[data.scenarios[s.scenarioId].scene];
-    scene.hotspots.filter((h) => h.kind === 'node').forEach((h) => { if (!s.nodes[h.id]) s.nodes[h.id] = { charges: h.charges }; });
+    scene.hotspots.filter((h) => h.kind === 'node').forEach((h) => {
+      const n = s.nodes[h.id] || (s.nodes[h.id] = { charges: h.charges });
+      n.charges = clamp(n.charges | 0, 0, h.charges);
+      // Saves from before regrowth have no timer: start one that is already due, so a
+      // depleted spot comes back straight away instead of staying empty forever.
+      if (n.charges < h.charges && (n.regrowAt == null || !isFinite(n.regrowAt))) n.regrowAt = 0;
+      if (n.charges >= h.charges) n.regrowAt = null;
+    });
+    s.resources = { wood: Math.max(0, s.resources.wood | 0), stone: Math.max(0, s.resources.stone | 0) };
     return s;
   }
 
@@ -156,13 +164,31 @@
     return { ok: true, state: t, first: true };
   }
 
-  function gather(s, nodeId) {
+  /* Regrowth: each depleted spot gets one charge back every regrowMs. `now` is a wall-clock
+     time in ms; passing it in keeps this function pure and testable.                    */
+  function regrow(s, now) {
+    const ms = D().regrowMs; let changed = false; const t = clone(s);
+    sceneOf(t).hotspots.filter((h) => h.kind === 'node').forEach((h) => {
+      const n = t.nodes[h.id];
+      if (n.charges < h.charges && n.regrowAt == null) { n.regrowAt = now + ms; changed = true; } // never stuck without a timer
+      while (n.charges < h.charges && n.regrowAt != null && now >= n.regrowAt) {
+        n.charges += 1; changed = true;
+        n.regrowAt = n.charges < h.charges ? Math.max(n.regrowAt + ms, n.regrowAt === 0 ? now + ms : 0) : null;
+      }
+      if (n.charges >= h.charges && n.regrowAt != null) { n.regrowAt = null; changed = true; }
+    });
+    return { changed, state: changed ? t : s };
+  }
+  function msUntilRegrow(s, nodeId, now) { const n = s.nodes[nodeId]; return n && n.regrowAt != null ? Math.max(0, n.regrowAt - now) : 0; }
+
+  function gather(s, nodeId, now) {
     const h = hotspot(s, nodeId);
     if (!h || h.kind !== 'node') return { ok: false, state: s, reason: 'Nothing to gather here.' };
     const node = s.nodes[nodeId];
-    if (!node || node.charges <= 0) return { ok: false, state: s, reason: 'This spot is cleared for now.' };
+    if (!node || node.charges <= 0) return { ok: false, state: s, reason: 'This spot is growing back. Try again in a few seconds.' };
     const t = clone(s);
     t.nodes[nodeId].charges -= 1;
+    if (t.nodes[nodeId].regrowAt == null) t.nodes[nodeId].regrowAt = (now == null ? Date.now() : now) + D().regrowMs;
     t.resources[h.res] += h.yield;
     t.gathered[h.res] += h.yield;
     return { ok: true, state: t, res: h.res, amount: h.yield };
@@ -172,13 +198,13 @@
      and not saved: it is a moment of animation, not progress. Only the third hit calls
      gather(), so resources are awarded exactly once per break.                     */
   const HITS_TO_BREAK = 3;
-  function strike(s, nodeId, hits) {
+  function strike(s, nodeId, hits, now) {
     const h = hotspot(s, nodeId);
     if (!h || h.kind !== 'node') return { ok: false, state: s, hits: 0, reason: 'Nothing to gather here.' };
-    if (!s.nodes[nodeId] || s.nodes[nodeId].charges <= 0) return { ok: false, state: s, hits: 0, reason: 'This spot is cleared for now.' };
+    if (!s.nodes[nodeId] || s.nodes[nodeId].charges <= 0) return { ok: false, state: s, hits: 0, reason: 'This spot is growing back. Try again in a few seconds.' };
     const n = Math.max(0, Math.min(HITS_TO_BREAK - 1, hits | 0)) + 1;
     if (n < HITS_TO_BREAK) return { ok: true, state: s, hits: n, done: false, res: h.res };
-    const r = gather(s, nodeId);
+    const r = gather(s, nodeId, now);
     return { ...r, hits: HITS_TO_BREAK, done: r.ok };
   }
 
@@ -434,7 +460,7 @@
     if (t.level === 3) t.flags.level3Completed = true;
     t.level = Math.min(D().levels.length, t.level + 1);
     // Building season: the gathering spots grow back when construction begins.
-    if (t.level === 3) sceneOf(t).hotspots.filter((h) => h.kind === 'node').forEach((h) => (t.nodes[h.id].charges = h.charges));
+    if (t.level === 3) sceneOf(t).hotspots.filter((h) => h.kind === 'node').forEach((h) => (t.nodes[h.id] = { charges: h.charges, regrowAt: null }));
     return { ok: true, state: t };
   }
 
@@ -453,7 +479,7 @@
   WV.sim = {
     clone, clamp, hash, rng, shuffle, cleanName, validName, suggestName,
     generateVillage, siteFor, migrate, metrics, sceneOf, hotspot, visible,
-    inspect, gather, strike, HITS_TO_BREAK, buildDef, canBuild,
+    inspect, gather, regrow, msUntilRegrow, strike, HITS_TO_BREAK, buildDef, canBuild,
     planMeeting, techChoices, chooseTech, activationSteps, nextActivation, capacityPeople, activate, startBuild, finishBuild, setFlag,
     collectSample, openLab, nextLabStep, inspectJar, useMicroscope, runFilter, filterResult, reviewNotes, labDef, sampleDef,
     survey, readyForOptions, reviewOptions, knownFacts, technologyOptions, walkerPlan, allRoutes,

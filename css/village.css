@@ -170,6 +170,11 @@ a { color: var(--water-700); }
 .pips { display: flex; gap: 3px; background: rgba(23, 25, 28, .7); padding: 3px 5px; border-radius: 8px; }
 .pips i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255, 255, 255, .25); }
 .pips i.on { background: var(--yellow); }
+/* The next charge to regrow pulses softly, so players can see the spot is coming back. */
+.node.regrowing .pips i:not(.on) { animation: regrow-pip 1.2s ease-in-out infinite; }
+.node.regrowing .pips i.on + i:not(.on), .node.regrowing .pips i:first-child:not(.on) { background: rgba(242, 193, 24, .45); }
+@keyframes regrow-pip { 50% { opacity: .35; } }
+.node.empty::after { content: "growing back"; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 2px; white-space: nowrap; font: 600 10px var(--font-ui); color: #fff8e6; background: rgba(23, 25, 28, .7); padding: 1px 6px; border-radius: 6px; }
 
 .float { position: absolute; transform: translate(-50%, -100%); font: 700 15px var(--font-ui); color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .7), 0 0 12px rgba(0, 0, 0, .4);
   white-space: nowrap; animation: float-up 1.4s var(--ease) forwards; }
