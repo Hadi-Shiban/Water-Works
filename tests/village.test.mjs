@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 require('../js/village/data.js');
 require('../js/village/sim.js');
+require('../js/village/water.js');
 const { data: D, sim } = globalThis.WV;
 const SCENARIOS = Object.keys(D.scenarios);
 
@@ -205,7 +206,8 @@ test('metrics are consistent with the baseline', () => {
   const m = sim.metrics(s);
   assert.ok(m.litresPerPerson > 5 && m.litresPerPerson < 30);
   assert.equal(m.hoursPerHousehold, (2 * s.baseline.roundTripMin) / 60);
-  assert.equal(m.peopleWithWater, 0);
+  assert.equal(m.peopleWithWater, WV.water.residents(s).existing, 'at the start only verified existing household solutions count');
+  assert.ok(m.peopleWithWater > 0 && m.peopleWithWater < s.population * 0.15);
 });
 
 /* ---- Level 2: investigate the water --------------------------------------------------------- */
@@ -354,15 +356,21 @@ test('lab tests change the experts’ judgement', () => {
 
 test('the walker plan grows from collection trips to closer trips plus village life', () => {
   const s = village('Kesi Hill', 1, 'highland');
-  const before = sim.walkerPlan(s); const after = sim.walkerPlan({ ...s, flags: { ...s.flags, systemActive: true } });
-  assert.equal(before[0].id, 'waterCollection'); assert.equal(after[0].id, 'waterCollectionAfter');
+  const before = sim.walkerPlan(s);
+  const opened = WV.water.open({ ...s, flags: { ...s.flags, systemActive: true }, tech: 'gravityFed' }, 0);
+  let later = opened; for (let i = 0; i < 12; i++) later = WV.water.step(later).state;
+  const mid = sim.walkerPlan(opened), after = sim.walkerPlan(later);
+  assert.equal(before[0].id, 'waterCollection');
+  assert.ok(mid.find((p) => p.id === 'waterCollection').count >= 2, 'right after opening most families still walk the long route');
+  assert.ok(after.find((p) => p.id === 'waterCollectionAfter').count > mid.find((p) => p.id === 'waterCollectionAfter').count, 'more trips to the new point as adoption grows');
+  assert.ok(!after.some((p) => p.id === 'waterCollection') || after.find((p) => p.id === 'waterCollection').count < 3, 'long trips become less frequent');
   assert.ok(!before.some((p) => p.id === 'labApproach'), 'no lab walker before the station exists');
   const l2 = sim.walkerPlan({ ...s, level: 2, builds: { lab: 'built' } });
   assert.ok(l2.some((p) => p.id === 'labApproach' && p.route.jar), 'a villager carries samples to the station in Level 2');
   const len = (r) => r.points.slice(1).reduce((t, p, i) => t + Math.hypot(p[0] - r.points[i][0], p[1] - r.points[i][1]), 0);
-  assert.ok(len(after[0].route) < len(before[0].route) / 2, 'the trip gets much shorter');
-  assert.ok(after[0].route.walkers <= before[0].route.walkers, 'fewer long collection trips');
-  assert.ok(after.slice(1).every((p) => p.extra === 1), 'more people out and about in the village');
+  const near = after.find((p) => p.id === 'waterCollectionAfter');
+  assert.ok(len(near.route) < len(before[0].route) / 2, 'the new trip is much shorter');
+  assert.ok(after.filter((p) => p.route.ambient !== false && !['waterCollection', 'waterCollectionAfter', 'labApproach'].includes(p.id)).every((p) => p.extra === 1), 'more people out and about in the village');
 });
 
 /* ---- Three-hit gathering ------------------------------------------------------------------ */
@@ -469,10 +477,14 @@ test('Level 3 is completable in every scenario with little extra gathering; reso
     assert.equal(sim.activate(s, steps[2].id).ok, false, 'steps run in order');
     for (const st of steps) s = play(s, (x) => sim.activate(x, st.id));
     assert.equal(s.flags.systemActive, true);
-    assert.ok(s.peopleWithWater > s.population * 0.5 && s.peopleWithWater <= s.population, `${id}: served ${s.peopleWithWater}/${s.population}`);
+    const m0 = sim.metrics(s);
+    assert.equal(m0.peopleWithWater, WV.water.residents(s).existing, `${id}: activation adds capacity, not instant access`);
+    assert.ok(s.water.active && s.water.capacityCans > 0);
+    for (let i = 0; i < 3; i++) s = WV.water.step(s).state;
     const m = sim.metrics(s);
+    assert.ok(m.peopleWithWater > m0.peopleWithWater && m.peopleWithWater < s.population, `${id}: access grows gradually`);
     assert.ok(m.roundTripAfter < s.baseline.roundTripMin && m.hoursSavedPerDay > 0);
-    assert.equal(sim.walkerPlan(s)[0].id, 'waterCollectionAfter', 'collectors switch to the close water point');
+    assert.ok(sim.walkerPlan(s).some((p) => p.id === 'waterCollectionAfter'), 'collectors start using the close water point');
     assert.ok(sim.walkerPlan(s).length >= 3, 'the village stays busy');
     assert.equal(sim.levelReady(s), true);
     s = play(s, sim.completeLevel);
@@ -598,5 +610,131 @@ test('regression 6: all three scenarios complete Levels 1–3 with no resource s
     assert.equal(s.level, 4, id);
     assert.equal(s.resources.wood, got.wood - spent.wood, `${id}: wood balance exact`);
     assert.equal(s.resources.stone, got.stone - spent.stone, `${id}: stone balance exact`);
+  }
+});
+
+/* ---- Phase 4: gradual access, households, sharing, committee, Level 4 ------------------------ */
+const W = WV.water;
+function finishLevel3(id, salt = 9) {
+  let s = finishLevel2(id, salt);
+  s = play(s, sim.planMeeting); s = play(s, (x) => sim.chooseTech(x, D.scenarios[id].primaryTech));
+  s = play(s, (x) => sim.inspect(x, 'waterPoint'));
+  s = gatherUntil(s, D.technologies[s.tech].cost).s;
+  s = play(s, (x) => sim.startBuild(x, 'waterPoint')); s = play(s, (x) => sim.finishBuild(x, 'waterPoint'));
+  for (const st of sim.activationSteps(s)) s = play(s, (x) => sim.activate(x, st.id, 1000));
+  return play(s, sim.completeLevel);
+}
+const accounted = (s) => {
+  const r = W.residents(s); const hh = s.water.hh;
+  assert.equal(W.CATS.reduce((t, k) => t + hh[k], 0), s.households, 'households in exactly one category');
+  assert.equal(r.total, s.population, 'every resident counted once');
+  W.CATS.forEach((k) => assert.ok(hh[k] >= 0 && r[k] >= 0, `${k} non-negative`));
+  assert.equal(r.reliable, r.project + r.existing);
+  assert.ok(s.water.far >= 0 && s.water.far <= hh.none);
+  return r;
+};
+
+test('P4-1 activating a water point adds capacity, not immediate access', () => {
+  for (const id of SCENARIOS) {
+    const s = finishLevel3(id);
+    const r = accounted(s);
+    assert.ok(s.water.capacityCans >= s.population * 0.5, `${id}: capacity ${s.water.capacityCans}`);
+    assert.equal(r.project, 0); assert.equal(r.reliable, r.existing);
+    assert.equal(sim.metrics(s).peopleWithWater, r.existing);
+  }
+});
+
+test('P4-2/3/4 reliable access grows step by step, categories stay exclusive and complete', () => {
+  for (const id of SCENARIOS) {
+    let s = finishLevel3(id); let prev = accounted(s).reliable; const jumps = [];
+    for (let i = 0; i < 20; i++) { s = W.step(s).state; const r = accounted(s); assert.ok(r.reliable >= prev, 'never goes down'); jumps.push(r.reliable - prev); prev = r.reliable; }
+    assert.ok(Math.max(...jumps) <= Math.ceil(s.population * 0.25), `${id}: no huge jump (${Math.max(...jumps)})`);
+    assert.ok(jumps.filter((j) => j > 0).length >= 3, `${id}: several visible increases`);
+    assert.ok(prev > W.residents(finishLevel3(id)).reliable, 'progress happened');
+  }
+});
+
+test('P4-5/6 existing household solutions count; partial treatment and trying do not', () => {
+  for (const id of SCENARIOS) {
+    const s = village('Base Line', 7, id); const r = accounted(s);
+    assert.ok(r.existing > 0 && r.partial > 0 && r.none > 0, `${id}: varied starting practices`);
+    assert.equal(sim.metrics(s).peopleWithWater, r.existing, 'only verified existing methods are reliable');
+    const b = D.water.baselines[id];
+    assert.ok(r.existing <= Math.ceil(s.population * (b.existing[1] + 0.05)) && r.partial >= Math.floor(s.population * (b.partial[0] - 0.05)));
+    let t = finishLevel3(id); t = W.step(t).state; const rt = accounted(t);
+    assert.ok(rt.trying > 0); assert.equal(rt.reliable, rt.project + rt.existing, 'trying households are not yet reliable');
+  }
+  assert.deepEqual(village('Base Line', 7, 'wetland').water, village('Base Line', 7, 'wetland').water, 'baseline is deterministic');
+});
+
+test('P4-7 walkers mirror the counts and cannot change them', () => {
+  let s = finishLevel3('highland'); for (let i = 0; i < 4; i++) s = W.step(s).state;
+  const before = JSON.stringify(s);
+  for (let i = 0; i < 50; i++) { sim.walkerPlan(s); W.walkerCounts(s); }
+  assert.equal(JSON.stringify(s), before, 'reading the walker plan never mutates state');
+  const c = W.walkerCounts(s);
+  assert.ok(c.long + c.near <= 7, 'a handful of walkers stand for many households');
+});
+
+test('P4-8/9 save/continue keeps adoption, and reloading cannot duplicate progress', () => {
+  let s = finishLevel3('plateau'); const t0 = 1e12;
+  s = W.open(s, t0); // schedule from a known time
+  let a = W.stepIfDue(s, t0 + D.water.stepMs); assert.equal(a.changed, true); s = a.state;
+  const saved = sim.serialize(s); const loaded = sim.deserialize(saved);
+  assert.deepEqual(loaded.water, s.water, 'adoption survives save/load');
+  const now = t0 + D.water.stepMs + 1000;
+  assert.equal(W.stepIfDue(loaded, now).changed, false, 'reloading right away adds nothing');
+  const twice = W.stepIfDue(W.stepIfDue(loaded, now + 10 * D.water.stepMs).state, now + 10 * D.water.stepMs);
+  assert.equal(twice.changed, false, 'one step per due time, even after a long break');
+  assert.equal(twice.state.water.periods, s.water.periods + 1);
+  const old = JSON.parse(saved); delete old.water; old.peopleWithWater = old.population;
+  const migrated = sim.deserialize(JSON.stringify(old));
+  accounted(migrated);
+  assert.ok(sim.metrics(migrated).peopleWithWater < migrated.population, 'old instant-access saves are not over-counted');
+  assert.equal(migrated.level, 4, 'the village itself is kept');
+});
+
+test('P4-10 sharing the water changes service outcomes; the clinic minimum holds', () => {
+  const s = finishLevel3('highland'); const cap = s.water.capacityCans;
+  const def = W.defaultAllocation(cap);
+  assert.equal(Object.values(def).reduce((a, v) => a + v, 0), cap);
+  const lowHomes = { ...def, homes: def.homes - 40, garden: def.garden + 40 };
+  assert.ok(W.outcome(s, lowHomes).homesHouseholds < W.outcome(s, def).homesHouseholds);
+  assert.equal(W.setAllocation(s, { ...def, clinic: 0, homes: def.homes + def.clinic }).ok, false, 'clinic minimum enforced');
+  assert.equal(W.setAllocation(s, { ...def, homes: def.homes + 5 }).ok, false, 'must add up to capacity');
+  let a = play(s, (x) => W.setAllocation(x, lowHomes)); let b = play(s, (x) => W.setAllocation(x, def));
+  for (let i = 0; i < 30; i++) { a = W.step(a).state; b = W.step(b).state; }
+  assert.ok(W.residents(a).project <= W.residents(b).project, 'less water for homes caps household access');
+  const starved = { homes: cap - W.clinicMin(cap), school: 0, clinic: W.clinicMin(cap), garden: 0 };
+  assert.equal(W.outcome(s, starved).sectors.school.status, 'short');
+});
+
+test('P4 committee options: extension reaches far homes; reliability verifies faster with more water', () => {
+  const base = play(finishLevel3('wetland'), (x) => W.setAllocation(x, W.defaultAllocation(x.water.capacityCans)));
+  let ext = play(base, (x) => W.decide(x, 'extend')); let rel = play(base, (x) => W.decide(x, 'reliability'));
+  assert.equal(W.decide(ext, 'reliability').ok, false, 'one decision');
+  assert.ok(rel.water.capacityCans > base.water.capacityCans, 'reliability adds daily water');
+  assert.equal(Object.values(rel.water.allocation).reduce((a, v) => a + v, 0), rel.water.capacityCans, 'allocation still adds up');
+  for (let i = 0; i < 40; i++) { ext = W.step(ext).state; rel = W.step(rel).state; }
+  assert.equal(ext.water.far, 0, 'extension reaches the far homes'); assert.ok(rel.water.far > 0, 'without it they keep walking');
+  accounted(ext); accounted(rel);
+});
+
+test('P4-11/12 Level 4 completes in every scenario and unlocks Level 5', () => {
+  for (const id of SCENARIOS) {
+    let s = finishLevel3(id);
+    assert.equal(s.level, 4); assert.equal(sim.nextObjective(s).id, 'open');
+    s = W.step(W.step(s).state).state; // first households verified
+    assert.equal(sim.nextObjective(s).id, 'review');
+    s = sim.setFlag(s, 'populationPanelSeen');
+    s = play(s, (x) => W.setAllocation(x, W.defaultAllocation(x.water.capacityCans)));
+    assert.equal(W.runWeek(s, 0).ok, false, 'meet the committee first');
+    s = play(s, (x) => W.decide(x, 'extend'));
+    s = play(s, (x) => W.runWeek(x, 0)); s = play(s, (x) => W.runWeek(x, 0));
+    assert.equal(sim.levelReady(s), true, id);
+    s = play(s, sim.completeLevel);
+    assert.equal(s.level, 5); assert.equal(sim.levelReady(s), false, 'Level 5 is next, not yet built');
+    accounted(s);
+    assert.deepEqual(sim.deserialize(sim.serialize(s)), s);
   }
 });

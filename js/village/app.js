@@ -52,7 +52,9 @@
       }
       case 'lab': return st.flags.committeeMet ? ['lab'] : ['committee'];
       case 'meeting': case 'choose': return ['committee'];
-      case 'site': case 'build': case 'activate': return ['waterPoint'];
+      case 'site': case 'build': case 'activate': case 'open': case 'share': case 'observe': return ['waterPoint'];
+      case 'decide': return ['committee'];
+      case 'review': return [];
       case 'materials': {
         const need = D.technologies[st.tech].cost;
         const short = { wood: st.resources.wood < need.wood, stone: st.resources.stone < need.stone };
@@ -73,7 +75,7 @@
     ui.targets = targetsFor(s);
     $('hudId').innerHTML = U.hudId(s);
     $('hudObjective').innerHTML = U.objective(s);
-    $('hudStats').innerHTML = U.stats(s, audio.state());
+    drawStats();
     const cl = $('checklist'); const obj = $('hudObjective');
     cl.hidden = !ui.checklistOpen; obj.setAttribute('aria-expanded', ui.checklistOpen ? 'true' : 'false');
     if (ui.checklistOpen) { cl.innerHTML = U.checklist(s, true); cl.style.setProperty('--cl-left', obj.offsetLeft + 'px'); }
@@ -319,12 +321,56 @@
     ui.activating = true; if (next.effect) scene.systemFx(next.effect); render();
     setTimeout(() => {
       ui.activating = false; ui.pumpCount = 0;
-      const r = sim.activate(s, next.id);
+      const r = sim.activate(s, next.id, Date.now());
       if (!r.ok) { toast('Not yet', U.esc(r.reason)); render(); return; }
       commit(r.state);
       announce(next.done);
-      if (r.done) { scene.celebrate('waterPoint'); toast('Water is flowing!', `${s.peopleWithWater} people now have safe water close to home.`, 'good'); }
+      if (r.done) { scene.celebrate('waterPoint'); toast('Water is flowing!', `Capacity for about ${s.water.capacityCans} jerry cans a day. Watch families start to use it.`, 'good'); }
     }, prefs.reducedMotion ? 250 : next.effect === 'flow' ? 2900 : next.effect === 'rain' ? 2200 : 1100);
+  }
+
+  /* ---- Level 4: community panel, sharing, committee, weeks ---------------------------------- */
+  function openPopulation() {
+    if (!s.flags.populationPanelSeen && s.level >= 4) { s = sim.setFlag(s, 'populationPanelSeen'); persist(); }
+    openDialog(U.population(s), 'dlg-narrow dlg-pop');
+  }
+  function openAllocation(msg) {
+    if (!ui.allocDraft) ui.allocDraft = { ...s.water.allocation };
+    refreshDialog(U.allocation(s, ui.allocDraft, msg), 'dlg-wide dlg-alloc');
+  }
+  function setDraft(id, v) {
+    const cap = s.water.capacityCans; const min = id === 'clinic' ? WV.water.clinicMin(cap) : 0;
+    ui.allocDraft[id] = Math.max(min, Math.min(cap, Math.round(v)));
+    // Keep the total fixed: take or give the difference from homes first, then the others.
+    let diff = Object.values(ui.allocDraft).reduce((a, x) => a + x, 0) - cap;
+    for (const k of ['homes', 'garden', 'school', 'clinic'].filter((k) => k !== id)) {
+      if (!diff) break; const lo = k === 'clinic' ? WV.water.clinicMin(cap) : 0;
+      const nv = Math.max(lo, Math.min(cap, ui.allocDraft[k] - diff)); diff -= ui.allocDraft[k] - nv; ui.allocDraft[k] = nv;
+    }
+    openAllocation();
+  }
+  function confirmAllocation() {
+    const r = WV.water.setAllocation(s, ui.allocDraft);
+    if (!r.ok) { openAllocation(r.reason); return; }
+    ui.allocDraft = null; closeDialog(); commit(r.state);
+    toast('Sharing confirmed', 'The committee will post the schedule at the water point.', 'good');
+  }
+  function decide(id) {
+    const r = WV.water.decide(s, id); if (!r.ok) { toast('Not yet', U.esc(r.reason)); return; }
+    closeDialog(); commit(r.state);
+    toast(`The committee chose: ${D.decisions[id].name}`, 'Open the water point and run the next week to see the results.', 'good');
+  }
+  function runWeek() {
+    if (ui.running) return;
+    ui.running = true; render();
+    setTimeout(() => {
+      ui.running = false;
+      const r = WV.water.runWeek(s, Date.now()); if (!r.ok) { toast('Not yet', U.esc(r.reason)); render(); return; }
+      commit(r.state);
+      const res = WV.water.residents(s);
+      toast(`Week ${s.water.weeksRun}`, `${res.project} residents now verified at the water point; ${res.trying} more are trying it.`, 'good');
+      announce(`${sim.metrics(s).peopleWithWater} residents have reliable water.`);
+    }, prefs.reducedMotion ? 200 : 1400);
   }
 
   function collectSample(id) {
@@ -384,6 +430,13 @@
       case 'collect-sample': collectSample(id); break;
       case 'lab-item': labItem(id); break;
       case 'plan-meeting': planMeeting(); break;
+      case 'open-population': openPopulation(); break;
+      case 'open-allocation': ui.allocDraft = null; openAllocation(); break;
+      case 'alloc-reset': ui.allocDraft = WV.water.defaultAllocation(s.water.capacityCans); openAllocation(); break;
+      case 'alloc-confirm': confirmAllocation(); break;
+      case 'open-decision': openDialog(U.decision(s), 'dlg-wide dlg-tech'); break;
+      case 'decide': decide(id); break;
+      case 'run-week': runWeek(); break;
       case 'open-tech': openTech(); break;
       case 'choose-tech': chooseTech(id); break;
       case 'activate': activate(); break;
@@ -418,6 +471,7 @@
   });
   document.addEventListener('input', (e) => {
     const el = e.target;
+    if (el.dataset && el.dataset.act === 'alloc') { setDraft(el.dataset.id, Number(el.value)); const r = $('dlg').querySelector(`[data-act="alloc"][data-id="${el.dataset.id}"]`); if (r) r.focus(); return; }
     if (el.dataset && el.dataset.act === 'set-volume') { audio.setVolume(el.value / 100); const o = $('volOut'); if (o) o.textContent = el.value + '%'; }
   });
   $('nameForm').addEventListener('submit', (e) => { e.preventDefault(); createVillage($('villageName').value); });
@@ -425,7 +479,7 @@
     if (e.key === 'Escape' && !$('dlg').open && ui.checklistOpen) { e.preventDefault(); ui.checklistOpen = false; render(); $('hudObjective').focus(); return; }
     if (e.key === 'Escape' && !$('dlg').open && ui.selected) { e.preventDefault(); closeSheet(); }
   });
-  audio.onChange(() => { if (s && !$('game').hidden) $('hudStats').innerHTML = U.stats(s, audio.state()); });
+  audio.onChange(() => { if (s && !$('game').hidden) drawStats(); });
 
   function applyMotion() {
     document.documentElement.classList.toggle('reduce-motion', !!prefs.reducedMotion);
@@ -437,7 +491,32 @@
     if (!s || $('game').hidden) return;
     const r = sim.regrow(s, Date.now());
     if (r.changed) { s = r.state; persist(); scene.update(s, { ...ui, targets: targetsFor(s) }); }
+    const a = WV.water.stepIfDue(s, Date.now());
+    if (a.changed) {
+      const firstUsers = s.water.hh.project === 0 && a.state.water.hh.project > 0;
+      commit(a.state);
+      if (firstUsers) toast('The first households are using the water point', 'Capacity isn’t access yet: each family joins, then the service has to prove reliable for them.', 'good');
+    }
   }, 1000);
+
+  /* The headline count eases toward its new value instead of jumping. */
+  let shown = null; let countRaf = 0;
+  function drawStats() {
+    $('hudStats').innerHTML = U.stats(s, audio.state());
+    const el = $('reliableCount'); if (!el) return;
+    const target = sim.metrics(s).peopleWithWater;
+    if (shown == null || prefs.reducedMotion) shown = target;
+    el.textContent = shown.toLocaleString('en-US');
+    if (shown === target) return;
+    const from = shown; const t0 = performance.now(); cancelAnimationFrame(countRaf);
+    el.parentElement.classList.add('counting');
+    const tick = (now) => {
+      const k = Math.min(1, (now - t0) / 1200); shown = Math.round(from + (target - from) * (1 - Math.pow(1 - k, 3)));
+      const node = $('reliableCount'); if (node) node.textContent = shown.toLocaleString('en-US');
+      if (k < 1) countRaf = requestAnimationFrame(tick); else if (node) node.parentElement.classList.remove('counting');
+    };
+    countRaf = requestAnimationFrame(tick);
+  }
 
   /* ---- Boot ------------------------------------------------------------------------------------------ */
   document.querySelector('.start-art').style.backgroundImage = `url('${D.startArt}')`;
@@ -448,7 +527,7 @@
   /* Debug and test hooks (used by tests/smoke.mjs). */
   WV.debug = {
     get state() { return s; }, get ui() { return ui; },
-    act, inspect, gather, build, planMeeting, chooseTech, activate, watchWalk, committeeAgree, openLab, collectSample, labItem, labGuess, labTest, labStep, labNotes, doSurvey, openOptions, optionsAgree,
+    act, inspect, gather, build, planMeeting, chooseTech, activate, openPopulation, confirmAllocation, decide, runWeek, watchWalk, committeeAgree, openLab, collectSample, labItem, labGuess, labTest, labStep, labNotes, doSurvey, openOptions, optionsAgree,
     newVillage: (name, scenarioId, salt) => { s = sim.generateVillage(name, salt == null ? 1 : salt, scenarioId); persist(); enterGame(); },
   };
 })(window);

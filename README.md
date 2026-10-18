@@ -13,7 +13,7 @@ python3 -m http.server 8000      # then open http://localhost:8000
 # or just open index.html in a browser
 ```
 
-- `index.html`: the **village game** (in development; Levels 1–3 of 5 are playable).
+- `index.html`: the **village game** (in development; Levels 1–4 of 5 are playable).
 - `municipal.html`: the original municipal-utility prototype, kept unchanged and documented below.
 - `?scenario=highland|plateau|wetland` forces a landscape (for testing and teaching). Normally it is chosen for you.
 - `?dev=routes` opens the developer route editor: a coordinate grid, draggable route waypoints, hotspot bounds, walker highlights, an "after the water point is built" preview, and **Copy routes JSON** to paste back into `js/village/data.js`. Edits are not saved; nothing changes for players.
@@ -24,7 +24,7 @@ Progress saves automatically in your browser (`localStorage`). Use **Menu → Ne
 
 ```bash
 node --test tests/                                   # model unit tests
-node --experimental-websocket tests/smoke.mjs        # Levels 1–3, all scenarios, desktop/tablet/phone, in headless Chrome (needs Chrome)
+node --experimental-websocket tests/smoke.mjs        # Levels 1–4, all scenarios, desktop/tablet/phone, in headless Chrome (needs Chrome)
 ```
 
 ## Artwork
@@ -56,6 +56,7 @@ All six images are 1672×941 and drawn at their own aspect ratio. To replace one
 | `js/village/scene.js` | Painting + SVG overlays (construction states, path-following jerry-can walkers) + accessible hotspot buttons |
 | `js/village/dev.js` | Route editor, only active with `?dev=routes` |
 | `js/village/ui.js` | HTML templates for the HUD, checklist, panels and dialogs |
+| `js/village/water.js` | Household access model: capacity vs reliable access, adoption steps, sharing, committee decision |
 | `js/village/audio.js` | One looping music track (`assets/audio/waterworks-ambient.mp3`) with saved mute and volume |
 | `js/village/app.js` | Controller: flow, events, persistence |
 | `css/village.css` | Village game styles (shares `css/tokens.css`) |

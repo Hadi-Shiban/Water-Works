@@ -409,7 +409,7 @@
     plan.forEach((p) => {
       const g = els.svg.querySelector(`.rt[data-route="${p.id}"]`); if (!g) return;
       const path = g.querySelector('.rt-path'); const len = path.getTotalLength(); if (!len) return;
-      const count = (p.route.walkers || 1) + (p.extra || 0);
+      const count = p.count != null ? p.count : (p.route.walkers || 1) + (p.extra || 0);
       const spacing = p.route.spacing || len / p.route.speed / count; // default: evenly spread
       for (let i = 0; i < count; i++) {
         const el = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -417,7 +417,7 @@
         el.dataset.route = p.id;
         el.innerHTML = `<use href="#${p.route.cans ? 'art-walker' : p.route.jar ? 'art-walker-jar' : 'art-walker-free'}" style="${look(n * 2 + 1)}"/>`;
         layer.appendChild(el);
-        walkers.push({ el, path, len, speed: p.route.speed, offset: i * spacing * p.route.speed + (n * 37) % 23, index: i, count, flip: 1, phase: n * 1.7 });
+        walkers.push({ el, path, len, speed: p.route.speed, dwell: (p.route.dwell || 0) * p.route.speed, offset: i * spacing * p.route.speed + (n * 37) % 23, index: i, count, flip: 1, phase: n * 1.7 });
         n++;
       }
     });
@@ -427,8 +427,11 @@
   function placeWalker(w, time) {
     let pos, dir;
     if (reduced) { pos = ((w.index + 0.5) / w.count) * w.len; dir = 1; } else {
-      const u = ((time / 1000) * w.speed + w.offset) % (2 * w.len);
-      if (u <= w.len) { pos = u; dir = 1; } else { pos = 2 * w.len - u; dir = -1; }
+      // Out, a short wait at the water point (filling up, a small queue), then back.
+      const u = ((time / 1000) * w.speed + w.offset) % (2 * w.len + w.dwell);
+      if (u <= w.len) { pos = u; dir = 1; }
+      else if (u <= w.len + w.dwell) { pos = Math.max(0, w.len - (w.index % 3) * 7); dir = 1; }
+      else { pos = 2 * w.len + w.dwell - u; dir = -1; }
     }
     const p = w.path.getPointAtLength(pos);
     const q = w.path.getPointAtLength(Math.max(0, Math.min(w.len, pos + dir * 4)));
@@ -458,7 +461,7 @@
     if (!els.svg) return;
     lastState = s; lastUi = ui;
     const plan = WV.sim.walkerPlan(s, { after: previewAfter });
-    const key = plan.map((p) => p.id + ':' + ((p.route.walkers || 1) + (p.extra || 0))).join('|');
+    const key = plan.map((p) => p.id + ':' + (p.count != null ? p.count : (p.route.walkers || 1) + (p.extra || 0))).join('|');
     if (key !== planKey) { planKey = key; buildWalkers(plan); }
     els.svg.querySelectorAll('.site').forEach((g) => g.setAttribute('data-state', s.builds[g.dataset.site] || 'site'));
     const sysState = s.flags.systemActive ? 'active' : s.builds.waterPoint === 'built' ? 'built' : 'hidden';

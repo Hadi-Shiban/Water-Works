@@ -111,6 +111,7 @@
     s.builds = { lab: 'site', waterPoint: 'site', ...s.builds };
     if (s.tech === undefined) s.tech = null;
     s.activation = s.activation || [];
+    WV.water.ensure(s);
     s.people = s.people || {};
     const used = Object.values(s.people).map((p) => p.name);
     const spare = shuffle(data.namePool, rng(s.seed)).filter((n) => used.indexOf(n) < 0);
@@ -137,7 +138,7 @@
       hoursPerHousehold: (b.tripsPerDay * b.roundTripMin) / 60,
       communityHours: ((b.tripsPerDay * b.roundTripMin) / 60) * s.households,
       cansPerDay: b.tripsPerDay * b.cansPerTrip * s.households,
-      peopleWithWater: s.peopleWithWater,
+      peopleWithWater: s.water ? WV.water.residents(s).reliable : 0,
       ...afterMetrics(s),
     };
   }
@@ -146,7 +147,7 @@
   function afterMetrics(s) {
     if (!s.flags || !s.flags.systemActive || !s.tech) return { active: false };
     const b = s.baseline; const after = D().technologies[s.tech].afterRoundTripMin;
-    const servedHouseholds = Math.round(s.households * (s.peopleWithWater / s.population));
+    const servedHouseholds = s.water.hh.project; // only verified users of the new point
     return { active: true, roundTripAfter: after, servedHouseholds,
       hoursSavedPerDay: (servedHouseholds * b.tripsPerDay * (b.roundTripMin - after)) / 60 };
   }
@@ -411,13 +412,14 @@
     if (s.tech === 'rainwater') return Math.round((s.site.bigRoofsM2 * s.site.rainfallMm * 0.8) / 365 / goal);
     return Math.round((D().technologies[s.tech].capacityCans * L) / goal);
   }
-  function activate(s, stepId) {
+  function activate(s, stepId, now) {
     if (s.builds.waterPoint !== 'built') return fail(s, 'Finish building first.');
     const next = nextActivation(s);
     if (!next) return { ok: true, state: s, done: true };
     if (next.id !== stepId) return fail(s, `First: ${next.label.toLowerCase()}.`);
     const t = clone(s); t.activation.push(stepId);
-    if (!nextActivation(t)) { t.flags.systemActive = true; t.peopleWithWater = Math.min(t.population, capacityPeople(t)); }
+    // Activation unlocks capacity. Access then grows household by household (water.js).
+    if (!nextActivation(t)) { t.flags.systemActive = true; WV.water.open(t, now == null ? Date.now() : now, true); }
     return { ok: true, state: t, step: next, done: !!t.flags.systemActive };
   }
 
@@ -432,7 +434,14 @@
   function walkerPlan(s, opts) {
     const routes = sceneOf(s).routes; const aft = routes.waterCollectionAfter;
     const after = !!(opts && opts.after) || (!!aft && !!s.flags[aft.whenFlag]);
-    const plan = [{ id: after ? 'waterCollectionAfter' : 'waterCollection', route: after ? aft : routes.waterCollection }];
+    // Walker counts mirror the household categories; they never feed back into them.
+    const c = WV.water && s.water ? WV.water.walkerCounts(s) : { long: 3, near: 0 };
+    const plan = [];
+    if (!after) plan.push({ id: 'waterCollection', route: routes.waterCollection });
+    else {
+      if (c.long > 0) plan.push({ id: 'waterCollection', route: routes.waterCollection, count: c.long });
+      plan.push({ id: 'waterCollectionAfter', route: aft, count: c.near });
+    }
     const lab = routes.labApproach;
     if (lab && s.level >= (lab.fromLevel || 1) && (!lab.needsBuilt || s.builds[lab.needsBuilt] === 'built')) plan.push({ id: 'labApproach', route: lab });
     (routes.ambient || []).forEach((a) => plan.push({ id: a.id, route: a, extra: after ? 1 : 0 }));

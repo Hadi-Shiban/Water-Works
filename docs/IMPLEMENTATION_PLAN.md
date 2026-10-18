@@ -164,6 +164,12 @@ Tests: 36 unit tests and 367 browser checks.
 **Art that would improve this phase:** painted overlays matching the backgrounds for the tapstand, hand pump, rain tank, spring box, drilling rig and construction scaffold. Each needs three states (site, building, complete), drawn angled top-down, at 256×256 on a transparent background. Painted animal sprite sheets would also help: two or three frames each, at 64×64. The current SVG stand-ins work but are flatter than the paintings.
 
 ### Phase 4: Community and distribution (Level 4)
+**Status: implemented, awaiting review.** Level 3 activation now opens *capacity* (jerry cans a day). Access grows household by household in `js/village/water.js`, on a 6-second service-period schedule or with "Run the next week". It is never driven by animation or by how many walkers are on screen.
+
+Each household is in exactly one category: `project`, `trying`, `existing`, `partial` or `none`. Only `project` and `existing` count as reliable. Residents are spread across categories with a largest-remainder rule, so the counts always sum to the population.
+
+Scenario baselines (fictional) set the starting shares of `existing` and `partial` households, and 20% of the no-access households live too far to join until access is extended. Level 4 has five objectives: first users, the community panel, sharing the water (clinic minimum kept), one committee decision (extend access, or improve storage and reliability), and running two weeks.
+
 - Four needs measured in jerry cans, with a protected clinic minimum.
 - Safe storage and hygiene actions, one expansion with a capacity preview, and one community development decision.
 - Accept: allocating more than capacity raises queue time; the safe-at-home figure responds to actions; the expansion preview matches the result.

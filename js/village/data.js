@@ -108,7 +108,7 @@
         routes: {
           waterCollection: { label: 'Water collection: plaza to spring pool', speed: 34, walkers: 3, spacing: 7, mode: 'outAndBack', cans: true, lit: true,
             points: [[50, 49], [46, 47], [43, 45], [40, 43.5], [37.5, 42.5], [35, 41], [33, 38.5], [31, 35.5], [29, 32.5], [27, 29.8], [25.3, 27.6], [24.2, 25.2], [23.3, 22.6], [22, 20.2], [20, 18.4], [17.5, 17.6]] },
-          waterCollectionAfter: { label: 'Water collection: plaza tapstand', whenFlag: 'systemActive', speed: 30, walkers: 2, spacing: 4, mode: 'outAndBack', cans: true, lit: true,
+          waterCollectionAfter: { label: 'Water collection: plaza tapstand', whenFlag: 'systemActive', dwell: 2.5, speed: 30, walkers: 2, spacing: 4, mode: 'outAndBack', cans: true, lit: true,
             points: [[49, 48.5], [52, 50], [55, 51.6], [58, 52.9]] },
           labApproach: { label: 'Samples to the field-testing station', fromLevel: 2, needsBuilt: 'lab', speed: 26, walkers: 1, spacing: 0, mode: 'outAndBack', cans: false, jar: true, lit: false,
             points: [[57, 55], [62, 56.8], [67, 57.4], [72, 57.2], [77, 57], [81, 57.4]] },
@@ -181,7 +181,7 @@
         routes: {
           waterCollection: { label: 'Water collection: square to river dock', speed: 30, walkers: 3, spacing: 6, mode: 'outAndBack', cans: true, lit: true,
             points: [[54, 56], [56.5, 59], [59.5, 62], [62.5, 64.5], [65, 67], [67, 69.5], [67.5, 72.5]] },
-          waterCollectionAfter: { label: 'Water collection: well beside the square', whenFlag: 'systemActive', speed: 28, walkers: 2, spacing: 4, mode: 'outAndBack', cans: true, lit: true,
+          waterCollectionAfter: { label: 'Water collection: well beside the square', whenFlag: 'systemActive', dwell: 2.5, speed: 28, walkers: 2, spacing: 4, mode: 'outAndBack', cans: true, lit: true,
             points: [[56.5, 53], [55.6, 55.5], [54.6, 57.6], [53.8, 59.6]] },
           labApproach: { label: 'Samples to the field-testing station', fromLevel: 2, needsBuilt: 'lab', speed: 24, walkers: 1, spacing: 0, mode: 'outAndBack', cans: false, jar: true, lit: false,
             points: [[57, 52.5], [55, 55], [52.5, 57], [50, 58.3], [47.5, 59.3]] },
@@ -252,7 +252,7 @@
         routes: {
           waterCollection: { label: 'Water collection: well square to pond dock', speed: 30, walkers: 3, spacing: 6, mode: 'outAndBack', cans: true, lit: true,
             points: [[49, 47], [51.5, 50], [54, 53], [57, 55.5], [61, 57.5], [64.5, 60], [67.5, 63], [70.5, 66], [72.5, 68]] },
-          waterCollectionAfter: { label: 'Water collection: school tank', whenFlag: 'systemActive', speed: 28, walkers: 2, spacing: 4, mode: 'outAndBack', cans: true, lit: true,
+          waterCollectionAfter: { label: 'Water collection: school tank', whenFlag: 'systemActive', dwell: 2.5, speed: 28, walkers: 2, spacing: 4, mode: 'outAndBack', cans: true, lit: true,
             points: [[54, 50.5], [59, 51.5], [64, 53], [69, 54], [73, 54], [75.2, 53.4]] },
           labApproach: { label: 'Samples to the field-testing station', fromLevel: 2, needsBuilt: 'lab', speed: 26, walkers: 1, spacing: 0, mode: 'outAndBack', cans: false, jar: true, lit: false,
             points: [[54, 50.5], [59, 51.5], [64, 53], [69, 54], [74, 54.5], [78.5, 53], [81.5, 50], [83, 47.5]] },
@@ -347,6 +347,55 @@
           insets: { clear: [40.8, 37, 13], dirty: [59.3, 34.8, 13.5] },
           covers: [{ kind: 'case', rect: [6.4, 52.3, 9.8, 10.6] }, { kind: 'scope', rect: [70.4, 42.6, 6.5, 8.2] }] },
       },
+    },
+
+    /* ---- Water use and household access (Level 3 activation onward) --------------------------
+       All values are simplified, fictional gameplay assumptions [game].
+       Households sit in exactly one category at a time:
+         project  verified reliable access from the new water point
+         trying   starting to use it, not yet verified (not counted as reliable)
+         existing verified household solution already in use (counted as reliable)
+         partial  some treatment or an unreliable source (NOT counted as reliable)
+         none     no verified reliable access
+       Residents are spread across categories by household with a largest-remainder rule,
+       so the categories always add up to the population exactly.                     */
+    water: {
+      stepMs: 6000,            // one "service period" every 6 s of play [game]
+      startShare: 0.12,        // share of all households that start using the point each period [game]
+      verifyRate: 0.8,         // share of trying households verified reliable each period [game]
+      verifyRateReliable: 1,   // with the storage/reliability upgrade [game]
+      reliabilityCapacityBoost: 0.15,
+      farShare: 0.2,           // share of no-access households too far away without an extension [game]
+      // Per scenario: [min, max] share of households in each starting category [game].
+      baselines: {
+        highland: { existing: [0.05, 0.08], partial: [0.18, 0.26],
+          existingNote: 'A few families use a ceramic filter every day and keep water in covered containers.',
+          partialNote: 'Many pour water through cloth or let it settle. It looks clearer, but germs get through.' },
+        plateau: { existing: [0.03, 0.06], partial: [0.14, 0.2],
+          existingNote: 'A few households boil every drop and store it in covered, cleaned containers.',
+          partialNote: 'Some boil water when they have fuel, or use a sediment filter. That helps sometimes, not every day.' },
+        wetland: { existing: [0.06, 0.1], partial: [0.26, 0.34],
+          existingNote: 'Some families use a BioSand filter and covered storage, and the lab tested their water safe.',
+          partialNote: 'Many collect rain in open jars or use cloth filters. Clearer water, but not reliably safe.' },
+      },
+    },
+
+    /* Sharing the water point's daily capacity, in jerry cans (1 can ≈ 20 L ≈ one person's day). */
+    allocation: {
+      sectors: [
+        { id: 'homes', name: 'Homes', icon: 'home', share: 0.72, note: 'Drinking, cooking and washing at home.' },
+        { id: 'school', name: 'School', icon: 'school', share: 0.1, needPerPerson: 0.06, note: 'Drinking water and handwashing for pupils.' },
+        { id: 'clinic', name: 'Clinic', icon: 'clinic', share: 0.08, needPerPerson: 0.04, critical: true, minShare: 0.06, note: 'Critical: clean water for care and hygiene.' },
+        { id: 'garden', name: 'Gardens', icon: 'leaf', share: 0.1, needPerPerson: 0.08, note: 'Watering the community gardens.' },
+      ],
+    },
+
+    /* The Level 4 committee decision: two reasonable options with honest tradeoffs. */
+    decisions: {
+      extend: { name: 'Extend access', short: 'Lay a pipe or path toward the farthest homes.',
+        pros: 'Families who live farthest can start using the water point.', cons: 'More people share the same supply, and checks stay as they are.' },
+      reliability: { name: 'Improve storage and reliability', short: 'Add storage and spare parts at the water point.',
+        pros: 'More water a day, and new users are verified faster.', cons: 'The farthest homes keep walking for now.' },
     },
 
     /* Gathering spots regrow one charge every regrowMs (wall-clock, so it carries across reloads). [game] */
@@ -459,7 +508,14 @@
           { id: 'build', text: (s) => `Build the ${s.tech ? WV.data.technologies[s.tech].structureName.toLowerCase() : 'water point'} with the local team`, check: (s) => s.builds.waterPoint === 'built' },
           { id: 'activate', text: () => 'Activate the system and test the water', check: (s) => !!s.flags.systemActive },
         ] },
-      { id: 4, title: 'Manage the Water', next: 'Keep It Flowing', comingSoon: true, objectives: [] },
+      { id: 4, title: 'Manage the Water', next: 'Keep It Flowing',
+        objectives: [
+          { id: 'open', text: () => 'Watch the first households start using the water point', check: (s) => !!s.water && s.water.hh.project > 0 },
+          { id: 'review', text: () => 'Tap “with reliable water” to review your community', check: (s) => !!s.flags.populationPanelSeen },
+          { id: 'share', text: () => 'Share the water between homes, school, clinic and gardens', check: (s) => !!s.water && !!s.water.allocationSet },
+          { id: 'decide', text: () => 'Meet the water committee about one improvement', check: (s) => !!s.water && !!s.water.decision },
+          { id: 'observe', text: (s) => `Run the next two weeks and see the results (${Math.min(2, (s.water && s.water.weeksRun) || 0)}/2)`, check: (s) => !!s.water && s.water.weeksRun >= 2 },
+        ] },
       { id: 5, title: 'Keep It Flowing', next: null, comingSoon: true, objectives: [] },
     ],
 
@@ -486,6 +542,11 @@
       materials: 'A little more wood and stone and the team can start. The gathering spots have filled up again.',
       build: 'Everything’s ready. Start building with the local team.',
       activate: 'Built! Open the site and bring the system to life.',
+      open: 'The water point is open. Capacity isn’t access yet: families try it, then it has to prove reliable for them.',
+      review: 'Tap the “with reliable water” count at the top to see who has safe water, and how.',
+      share: 'Open the water point and share its water between homes, school, clinic and gardens.',
+      decide: 'The committee has saved for one improvement. Meet them at the {committeePlace}.',
+      observe: 'Open the water point and run the next week to see what changes.',
       done: 'Nicely done.',
     },
   };

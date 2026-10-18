@@ -264,8 +264,9 @@ async function playCampaign(scenario, vp) {
     if (guard === 1 && vp[0] >= 1000) await shot(`${scenario}-17-activating`);
     await sleep(2600);
   }
-  check(await S('s.flags.systemActive && s.peopleWithWater > 0 && s.activation.length === 3'), 'the system activates after its three steps');
-  check(await evaluate('WV.scene.walkerPositions().some((w) => w.route === "waterCollectionAfter") && !WV.scene.walkerPositions().some((w) => w.route === "waterCollection")'), 'collectors switch to the close water point');
+  check(await S('s.flags.systemActive && s.activation.length === 3 && s.water.active && s.water.capacityCans > 0'), 'the system activates after its three steps');
+  check(await S('WV.water.residents(s).project === 0 && WV.sim.metrics(s).peopleWithWater === WV.water.residents(s).existing'), 'activation adds capacity, not instant access');
+  check(await evaluate('WV.scene.walkerPositions().some((w) => w.route === "waterCollectionAfter") && WV.scene.walkerPositions().some((w) => w.route === "waterCollection")'), 'a few families try the new point while most still walk the long route');
   check(await evaluate('WV.scene.walkerPositions().length >= 5'), 'the village stays lively');
   if (vp[0] >= 1000) {
     await evaluate('document.querySelectorAll(".toasts .toast").forEach((x) => x.remove()); document.getElementById("sheet").hidden = true; true');
@@ -282,11 +283,58 @@ async function playCampaign(scenario, vp) {
   await click('[data-act="next-level"]'); await sleep(400);
   check(await S('s.level === 4 && s.flags.level3Completed'), 'Level 4 unlocked');
 
+  // ---- Level 4: manage the water ----------------------------------------------------
+  for (let i = 0; i < 20 && !(await S('s.water.hh.project > 0')); i++) await sleep(1000);
+  check(await S('s.water.hh.project > 0'), 'the first households are verified after a short while');
+  const c0 = await evaluate('Number(document.getElementById("reliableCount").textContent.replace(/,/g, ""))');
+  await click('.stat-btn[data-act="open-population"]'); await sleep(400);
+  check(await evaluate('document.querySelectorAll(".cats .cat").length === 5 && !!document.querySelector(".distbar .seg-existing")'), 'community panel shows five categories and a distribution bar');
+  check(await evaluate(`[...document.querySelectorAll('.cats .n')].reduce((t, n) => t + Number(n.textContent.replace(/,/g, '')), 0) === ${await S('s.population')}`), 'panel categories add up to the population');
+  check(await S('s.flags.populationPanelSeen'), 'review objective done');
+  if (vp[0] >= 1000 || vp[0] < 600) await shot(`${scenario}-20-population-${vp[0]}`);
+  await click('[data-act="close-dialog"]'); await sleep(250);
+  await click('#hotspots [data-id="waterPoint"]'); await sleep(250);
+  await click('#sheet [data-act="open-allocation"]'); await sleep(350);
+  check(await evaluate('document.querySelectorAll(".alloc-row input[type=range]").length === 4'), 'sharing panel has four sliders');
+  const clinicMin = await evaluate('Number(document.querySelector(\'[data-act="alloc"][data-id="clinic"]\').min)');
+  check(clinicMin > 0, `the clinic slider cannot go below its minimum (${clinicMin})`);
+  await evaluate(`(() => { const r = document.querySelector('[data-act="alloc"][data-id="garden"]'); r.value = String(Number(r.value) + 20); r.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+  await sleep(200);
+  check(await evaluate('/All [0-9,]+ cans shared/.test(document.querySelector(".alloc-sum").textContent)'), 'moving one slider keeps the total shared');
+  if (vp[0] >= 1000) await shot(`${scenario}-21-share`);
+  await click('[data-act="alloc-confirm"]'); await sleep(350);
+  check(await S('s.water.allocationSet && Object.values(s.water.allocation).reduce((a, v) => a + v, 0) === s.water.capacityCans'), 'sharing confirmed and adds up');
+  await click('#hotspots [data-id="committee"]'); await sleep(250);
+  await click('#sheet [data-act="open-decision"]'); await sleep(350);
+  check(await evaluate('document.querySelectorAll(\'[data-act="decide"]\').length === 2'), 'committee offers two options');
+  if (vp[0] >= 1000) await shot(`${scenario}-22-committee`);
+  await click(`[data-act="decide"][data-id="${scenario === 'plateau' ? 'reliability' : 'extend'}"]`); await sleep(350);
+  check(await S('!!s.water.decision'), 'committee decision recorded');
+  await click('#hotspots [data-id="waterPoint"]'); await sleep(250);
+  const r0 = await S('WV.sim.metrics(s).peopleWithWater');
+  await click('#sheet [data-act="run-week"]'); await sleep(1650);
+  const mid = await evaluate('Number(document.getElementById("reliableCount").textContent.replace(/,/g, ""))');
+  await sleep(1300);
+  const r1 = await S('WV.sim.metrics(s).peopleWithWater');
+  const shownNow = await evaluate('Number(document.getElementById("reliableCount").textContent.replace(/,/g, ""))');
+  check(r1 >= r0 && shownNow === r1, `reliable access after week 1: ${r0} → ${r1} (counter eased through ${mid})`);
+  await click('#sheet [data-act="run-week"]'); await sleep(1700);
+  check(await S('s.water.weeksRun >= 2'), 'two weeks run');
+  if (vp[0] >= 1000) { await evaluate('document.querySelectorAll(".toasts .toast").forEach((x) => x.remove()); true'); await shot(`${scenario}-23-week`); }
+  await sleep(1400);
+  check(await evaluate('/The water is shared/.test(document.getElementById("dlg").textContent)'), 'Level 4 milestone');
+  if (vp[0] >= 1000) await shot(`${scenario}-24-level4`);
+  await click('[data-act="next-level"]'); await sleep(300);
+  check(await S('s.level === 5 && s.completedLevels.includes(4)'), 'Level 5 unlocked');
+
   // save → reload → continue
+  const waterBefore = await S('JSON.stringify({ hh: s.water.hh, far: s.water.far, decision: s.water.decision, allocation: s.water.allocation, weeksRun: s.water.weeksRun })');
   await go(`${BASE}/index.html`);
   check(await evaluate('!document.getElementById("continueBtn").hidden'), 'Continue offered after reload');
   await click('#continueBtn'); await sleep(600);
-  check(await S(`s.level === 4 && s.builds.lab === 'built' && s.builds.waterPoint === 'built' && s.flags.systemActive && s.tech && s.name === 'Smoke Ridge' && s.scenarioId === '${scenario}' && Object.keys(s.results).length === 2 && s.flags.level3Completed`), 'continue restores all three levels: station, water system, results');
+  check(await S(`s.level === 5 && s.builds.waterPoint === 'built' && s.flags.systemActive && s.name === 'Smoke Ridge' && s.scenarioId === '${scenario}' && Object.keys(s.results).length === 2`), 'continue restores all four levels');
+  const waterAfter = await S('JSON.stringify({ hh: s.water.hh, far: s.water.far, decision: s.water.decision, allocation: s.water.allocation, weeksRun: s.water.weeksRun })');
+  check(waterAfter === waterBefore, 'continue restores household access exactly (no duplicated progress)');
   check(await evaluate('document.querySelector(".site.wp").getAttribute("data-state") === "built" && document.querySelector("svg.scene").classList.contains("system-active")'), 'the active water system is drawn after continue');
   check(await evaluate('document.querySelector(".site").getAttribute("data-state") === "built"'), 'built station is drawn after continue');
 }
