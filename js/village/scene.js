@@ -207,13 +207,25 @@
     stone: '<svg viewBox="-16 -16 32 32" aria-hidden="true"><path d="M-12 8 q-2 -9 6 -11 q8 -1 9 11 Z" fill="#a39d92" stroke="#5d584f" stroke-width="1.3"/><path d="M-1 8 q-1 -12 8 -12 q7 1 6 12 Z" fill="#bdb6a9" stroke="#5d584f" stroke-width="1.3"/><path d="M-7 -1 q0 -9 7 -9 q6 1 4 9 Z" fill="#8f897e" stroke="#5d584f" stroke-width="1.3"/></svg>',
   };
 
+  /* Crack overlays drawn over the node icon; CSS reveals stage 1 then 2 by data-hits. */
+  const CRACKS = {
+    wood: `<svg class="cracks" viewBox="-16 -16 32 32" aria-hidden="true">
+      <g class="c1"><path d="M-5 3 l-2.6 -2.2 M0.4 -5.6 l2.6 -2.4 M5.5 3.5 l2.4 1.6"/></g>
+      <g class="c2"><path d="M-5 3 l3.2 3 M-5 3 l-1 -4.6 M0.4 -5.6 l-3 1.2 M0.4 -5.6 l0.6 4.4 M5.5 3.5 l-0.8 -4.4 M5.5 3.5 l-3 2.4"/></g></svg>`,
+    stone: `<svg class="cracks" viewBox="-16 -16 32 32" aria-hidden="true">
+      <g class="c1"><path d="M-1 -8 l1.6 3.4 l-2 2.6"/></g>
+      <g class="c2"><path d="M-2.4 -2 l2.8 3 l-1.2 3.6 l2.4 3 M-2.4 -2 l-3.6 1.2 l-2 3.4 M0.4 1 l4 -1.4 l2.6 2.2"/></g></svg>`,
+  };
+  const FRAG = { wood: ['#a26a3a', '#7a4e2b', '#c48a52'], stone: ['#a39d92', '#8f897e', '#c4beb2'] };
+
   function hotspotMarkup(s) {
     return scene.hotspots.map((h) => {
       const [x, y] = V(h.x, h.y);
       if (h.kind === 'node') {
         const r = D().resources[h.res];
-        return `<button type="button" class="node" data-act="gather" data-id="${h.id}" data-res="${h.res}" style="left:${f1(x)}%;top:${f1(y)}%">
-          <span class="node-chip">${NODE_ICON[h.res]}</span><span class="pips" aria-hidden="true"></span><span class="sr-only">${r.verb}</span></button>`;
+        return `<button type="button" class="node" data-act="gather" data-id="${h.id}" data-res="${h.res}" data-hits="0" style="left:${f1(x)}%;top:${f1(y)}%">
+          <span class="node-chip">${NODE_ICON[h.res]}${CRACKS[h.res]}</span><span class="hitcount" aria-hidden="true"></span>
+          <span class="pips" aria-hidden="true"></span><span class="sr-only">${r.verb}</span></button>`;
       }
       return `<button type="button" class="hs hs-${h.kind}" data-act="inspect" data-id="${h.id}" style="left:${f1(x)}%;top:${f1(y)}%">
         <span class="ring" aria-hidden="true"></span><span class="tag">${esc(h.label)}</span></button>`;
@@ -343,11 +355,13 @@
     els.hs.querySelectorAll('.node').forEach((b) => {
       const h = scene.hotspots.find((x) => x.id === b.dataset.id); const left = s.nodes[h.id].charges;
       b.querySelector('.pips').innerHTML = Array.from({ length: h.charges }, (_, i) => `<i class="${i < left ? 'on' : ''}"></i>`).join('');
-      b.classList.toggle('empty', left <= 0);
+      b.classList.toggle('empty', left <= 0 && !b.classList.contains('breaking'));
       b.classList.toggle('target', targets.indexOf(h.id) >= 0);
-      b.disabled = left <= 0;
+      b.disabled = left <= 0 && !b.classList.contains('breaking');
+      const hits = (ui.hits && ui.hits[h.id]) || 0; const need = WV.sim.HITS_TO_BREAK;
+      if (!b.classList.contains('breaking')) setHits(b, hits);
       const r = D().resources[h.res];
-      b.setAttribute('aria-label', left > 0 ? `${r.verb} (+${h.yield}). ${left} of ${h.charges} left here.` : `${r.name}: this spot is cleared for now.`);
+      b.setAttribute('aria-label', left > 0 ? `${r.verb}: tap ${need} times (+${h.yield}).${hits ? ` ${hits} of ${need} hits.` : ''} ${left} of ${h.charges} left here.` : `${r.name}: this spot is cleared for now.`);
     });
   }
 
@@ -361,6 +375,41 @@
     const btn = els.hs.querySelector(`[data-id="${id}"]`);
     if (btn) { btn.classList.remove('pop'); void btn.offsetWidth; btn.classList.add('pop'); }
   }
+  /* ---- Three-hit gathering effects (pure decoration; the model decides rewards) ---------- */
+  const nodeBtn = (id) => els.hs && els.hs.querySelector(`.node[data-id="${id}"]`);
+  function setHits(b, n) {
+    b.dataset.hits = String(n);
+    b.querySelector('.hitcount').textContent = n > 0 ? `${n}/${WV.sim.HITS_TO_BREAK}` : '';
+  }
+  function particles(id, kind, count, spread) {
+    const h = scene.hotspots.find((x) => x.id === id); if (!h || !els.fx || reduced) return;
+    const [x, y] = V(h.x, h.y); const cols = FRAG[h.res];
+    const el = document.createElement('div'); el.className = `frags ${kind} ${h.res}`; el.style.left = f1(x) + '%'; el.style.top = f1(y) + '%';
+    el.innerHTML = Array.from({ length: count }, (_, i) => {
+      const a = (i / count) * 360 + (i * 37) % 25; const d = spread * (0.6 + ((i * 53) % 40) / 100);
+      return `<i style="--a:${a.toFixed(0)}deg;--d:${d.toFixed(0)}px;--r:${(i * 71) % 300}deg;background:${cols[i % cols.length]}"></i>`;
+    }).join('');
+    els.fx.appendChild(el); setTimeout(() => el.remove(), 900);
+  }
+  function hitNode(id, n) {
+    const b = nodeBtn(id); if (!b) return;
+    setHits(b, n);
+    b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake');
+    particles(id, 'impact', 5, 22);
+  }
+  function breakNode(id) {
+    const b = nodeBtn(id); if (!b) return;
+    setHits(b, WV.sim.HITS_TO_BREAK);
+    b.classList.remove('shake'); b.classList.add('breaking');
+    particles(id, 'burst', 12, 46);
+  }
+  function resetNode(id) {
+    const b = nodeBtn(id); if (!b) return;
+    b.classList.remove('breaking', 'shake');
+    setHits(b, 0);
+    if (lastState) update(lastState, lastUi);
+  }
+
   function celebrate(id) {
     const h = scene.hotspots.find((x) => x.id === id); if (!h || !els.fx) return;
     const [x, y] = V(h.x, h.y);
@@ -386,7 +435,7 @@
   }
   function setPreviewAfter(on) { previewAfter = !!on; planKey = ''; if (lastState) update(lastState, lastUi); }
   const api = {
-    mount, update, fit, floatText, celebrate, focusHotspot, scrollToHotspot, setReducedMotion, stopWalkers,
+    mount, update, fit, floatText, celebrate, hitNode, breakNode, resetNode, focusHotspot, scrollToHotspot, setReducedMotion, stopWalkers,
     onMount: (fn) => mountHooks.push(fn), rebuildRoutes, setPreviewAfter, smoothPath,
     get scene() { return scene; }, get svg() { return els.svg; }, get box() { return els.box; },
     walkerPositions: () => walkers.map((w) => ({ route: w.el.dataset.route, transform: w.el.getAttribute('transform') })),

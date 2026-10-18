@@ -110,7 +110,23 @@ async function playCampaign(scenario, vp) {
 
   // gather everything
   const nodes = await evaluate('[...document.querySelectorAll("#hotspots .node")].map((n) => n.dataset.id)');
-  for (const n of nodes) for (let i = 0; i < 3; i++) { await click(`#hotspots [data-id="${n}"]`); await sleep(420); }
+  // three-hit gathering: hits 1 and 2 award nothing, the 3rd does; rapid clicks cannot double-award
+  if (await evaluate('!document.getElementById("sheet").hidden')) await click('#sheet [data-act="close-sheet"]');
+  const w0 = nodes.find((n) => n.startsWith('wood'));
+  await click(`#hotspots [data-id="${w0}"]`); await sleep(150);
+  await click(`#hotspots [data-id="${w0}"]`); await sleep(150);
+  check(await S('s.resources.wood === 0') && await evaluate(`document.querySelector('#hotspots [data-id="${w0}"]').dataset.hits === '2' && document.querySelector('#hotspots [data-id="${w0}"] .hitcount').textContent === '2/3'`), 'two hits: cracks and "2/3", no wood yet');
+  if (vp[0] >= 1000) { const r = await evaluate(`(() => { const b = document.querySelector('#hotspots [data-id="${w0}"]').getBoundingClientRect(); return [b.x, b.y]; })()`);
+    const c = await send('Page.captureScreenshot', { format: 'png', clip: { x: r[0] - 60, y: r[1] - 50, width: 180, height: 150, scale: 2 } }); fs.writeFileSync(path.join(OUT, `${scenario}-3b-cracks.png`), Buffer.from(c.result.data, 'base64')); }
+  await evaluate(`(() => { const b = document.querySelector('#hotspots [data-id="${w0}"]'); for (let i = 0; i < 6; i++) b.click(); return true; })()`);
+  check(await S('s.resources.wood === 2 && s.nodes.' + w0 + '.charges === 2'), 'third hit awards +2 once, even with rapid extra clicks');
+  await sleep(700);
+  check(await evaluate(`!document.querySelector('#hotspots [data-id="${w0}"]').classList.contains('breaking') && document.querySelector('#hotspots [data-id="${w0}"]').dataset.hits === '0'`), 'the node resets after its break animation');
+  const charges = await S('JSON.stringify(Object.fromEntries(Object.entries(s.nodes).map(([k, v]) => [k, v.charges])))');
+  for (const n of nodes) for (let i = 0; i < JSON.parse(charges)[n]; i++) {
+    for (let h = 0; h < 3; h++) { await click(`#hotspots [data-id="${n}"]`); await sleep(110); }
+    await sleep(620);
+  }
   check(await S('s.gathered.wood >= 6 && s.gathered.stone >= 4'), 'gathered 6 wood and 4 stone');
   check(await evaluate('document.querySelectorAll("#hotspots .node.empty").length === 4'), 'cleared nodes show as empty');
 

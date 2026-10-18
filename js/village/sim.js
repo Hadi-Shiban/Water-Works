@@ -155,6 +155,20 @@
     return { ok: true, state: t, res: h.res, amount: h.yield };
   }
 
+  /* Three-hit gathering. `hits` is the node's current hit count (0–2), kept by the UI
+     and not saved: it is a moment of animation, not progress. Only the third hit calls
+     gather(), so resources are awarded exactly once per break.                     */
+  const HITS_TO_BREAK = 3;
+  function strike(s, nodeId, hits) {
+    const h = hotspot(s, nodeId);
+    if (!h || h.kind !== 'node') return { ok: false, state: s, hits: 0, reason: 'Nothing to gather here.' };
+    if (!s.nodes[nodeId] || s.nodes[nodeId].charges <= 0) return { ok: false, state: s, hits: 0, reason: 'This spot is cleared for now.' };
+    const n = Math.max(0, Math.min(HITS_TO_BREAK - 1, hits | 0)) + 1;
+    if (n < HITS_TO_BREAK) return { ok: true, state: s, hits: n, done: false, res: h.res };
+    const r = gather(s, nodeId);
+    return { ...r, hits: HITS_TO_BREAK, done: r.ok };
+  }
+
   function canBuild(s, id) {
     const b = D().builds[id];
     if (!b) return { ok: false, reason: 'Unknown project.' };
@@ -376,7 +390,7 @@
   WV.sim = {
     clone, clamp, hash, rng, shuffle, cleanName, validName, suggestName,
     generateVillage, siteFor, migrate, metrics, sceneOf, hotspot, visible,
-    inspect, gather, canBuild, startBuild, finishBuild, setFlag,
+    inspect, gather, strike, HITS_TO_BREAK, canBuild, startBuild, finishBuild, setFlag,
     collectSample, openLab, nextLabStep, inspectJar, useMicroscope, runFilter, filterResult, reviewNotes, labDef, sampleDef,
     survey, readyForOptions, reviewOptions, knownFacts, technologyOptions, walkerPlan, allRoutes,
     levelDef, objectives, nextObjective, levelReady, completeLevel,

@@ -145,6 +145,27 @@ a { color: var(--water-700); }
 @keyframes pop { 40% { transform: scale(.86) rotate(-6deg); } 100% { transform: scale(1); } }
 .node.empty { cursor: default; }
 .node.empty .node-chip { opacity: .45; filter: grayscale(.7); }
+/* Three-hit gathering: cracks by stage, a shake per hit, a break with fragments. */
+.node-chip { position: relative; }
+.cracks { position: absolute; inset: 5px; width: auto !important; height: auto !important; pointer-events: none; }
+.cracks path { fill: none; stroke: #2a1d10; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
+.node[data-res="stone"] .cracks path { stroke: #3c3934; }
+.cracks g { opacity: 0; transition: opacity .12s; }
+.node[data-hits="1"] .c1, .node[data-hits="2"] .c1, .node[data-hits="2"] .c2, .node[data-hits="3"] .c1, .node[data-hits="3"] .c2 { opacity: 1; }
+.hitcount { position: absolute; top: -6px; right: -4px; min-width: 26px; padding: 1px 5px; border-radius: 9px; font: 700 11px/1.4 var(--font-ui); text-align: center;
+  color: #1b1406; background: var(--yellow); box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
+.hitcount:empty { display: none; }
+.node.shake .node-chip { animation: node-shake .22s ease-out; }
+@keyframes node-shake { 20% { transform: translateX(-3px) rotate(-5deg) scale(.94); } 50% { transform: translateX(3px) rotate(4deg); } 80% { transform: translateX(-1px); } }
+.node.breaking .node-chip { animation: node-break .5s var(--ease) forwards; }
+@keyframes node-break { 30% { transform: scale(1.12); } 100% { transform: scale(.2) rotate(18deg); opacity: 0; } }
+.node.breaking .hitcount { display: none; }
+.frags { position: absolute; width: 0; height: 0; pointer-events: none; }
+.frags i { position: absolute; left: -3px; top: -3px; width: 6px; height: 4px; border-radius: 1px; animation: frag .7s var(--ease) forwards; transform: rotate(var(--a)) translateY(0); }
+.frags.stone i { width: 6px; height: 6px; clip-path: polygon(0 20%, 60% 0, 100% 45%, 70% 100%, 10% 85%); }
+.frags.impact i { width: 4px; height: 3px; animation-duration: .4s; }
+@keyframes frag { 70% { opacity: 1; } to { transform: rotate(var(--a)) translateY(calc(-1 * var(--d))) rotate(var(--r)); opacity: 0; } }
+.reduce-motion .node.breaking .node-chip { opacity: .4; }
 .pips { display: flex; gap: 3px; background: rgba(23, 25, 28, .7); padding: 3px 5px; border-radius: 8px; }
 .pips i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255, 255, 255, .25); }
 .pips i.on { background: var(--yellow); }

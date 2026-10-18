@@ -15,7 +15,7 @@
   let s = null;
   // The checklist starts collapsed: the objective chip always shows the next step,
   // and the painted map should stay visible.
-  const ui = { selected: null, watching: false, checklistOpen: false, targets: [], busy: {}, levelShown: false, labItem: null, labBusy: null, surveying: null };
+  const ui = { selected: null, watching: false, checklistOpen: false, targets: [], hits: {}, breaking: {}, levelShown: false, labItem: null, labBusy: null, surveying: null };
   const prefs = (() => {
     const def = { reducedMotion: root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches };
     try { return { ...def, ...JSON.parse(root.localStorage.getItem(PREF_KEY) || '{}') }; } catch (e) { return def; }
@@ -127,6 +127,7 @@
     enterGame();
   }
   function enterGame() {
+    ui.hits = {}; ui.breaking = {};
     $('start').hidden = true; $('game').hidden = false;
     audio.start(); // inside the click that started or continued the game
     scene.mount($('stage'), s, { reducedMotion: prefs.reducedMotion });
@@ -151,17 +152,27 @@
     if (id) scene.focusHotspot(id);
   }
 
+  /* Gathering: three hits. The third hit awards the resource and locks the node until its
+     short break animation ends, so rapid clicks can never award twice.               */
   function gather(id) {
-    if (ui.busy[id]) return;
-    const r = sim.gather(s, id);
+    if (ui.breaking[id]) return;
+    const r = sim.strike(s, id, ui.hits[id] || 0);
     if (!r.ok) { toast('Nothing left here', r.reason); return; }
-    ui.busy[id] = true; setTimeout(() => (ui.busy[id] = false), prefs.reducedMotion ? 60 : 380);
     const res = D.resources[r.res];
-    scene.floatText(id, `+${r.amount} ${res.name.toLowerCase()}`);
+    if (!r.done) {
+      ui.hits[id] = r.hits;
+      scene.hitNode(id, r.hits);
+      announce(`${res.name}: ${r.hits} of ${sim.HITS_TO_BREAK}.`);
+      return;
+    }
+    ui.breaking[id] = true; ui.hits[id] = 0;
+    scene.breakNode(id);
+    scene.floatText(id, `+${r.amount} ${res.name}`);
     commit(r.state);
     const v = document.querySelector(`.stat .v[data-res="${r.res}"]`);
     if (v) { v.classList.remove('bump'); void v.offsetWidth; v.classList.add('bump'); }
     announce(`Gathered ${r.amount} ${res.name.toLowerCase()}. You have ${s.resources[r.res]}.`);
+    setTimeout(() => { ui.breaking[id] = false; scene.resetNode(id); }, prefs.reducedMotion ? 120 : 520);
   }
 
   function watchWalk() {

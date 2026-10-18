@@ -364,3 +364,41 @@ test('the walker plan grows from collection trips to closer trips plus village l
   assert.ok(after[0].route.walkers <= before[0].route.walkers, 'fewer long collection trips');
   assert.ok(after.slice(1).every((p) => p.extra === 1), 'more people out and about in the village');
 });
+
+/* ---- Three-hit gathering ------------------------------------------------------------------ */
+test('one or two hits award nothing; exactly the third awards the normal yield', () => {
+  const s = village('Kesi Hill', 1, 'highland');
+  const a = sim.strike(s, 'wood1', 0);
+  assert.equal(a.ok, true); assert.equal(a.done, false); assert.equal(a.hits, 1); assert.equal(a.state, s, 'no state change');
+  const b = sim.strike(s, 'wood1', a.hits);
+  assert.equal(b.done, false); assert.equal(b.hits, 2); assert.equal(b.state.resources.wood, 0);
+  const c = sim.strike(s, 'wood1', b.hits);
+  assert.equal(c.done, true); assert.equal(c.amount, 2);
+  assert.equal(c.state.resources.wood, 2); assert.equal(c.state.gathered.wood, 2); assert.equal(c.state.nodes.wood1.charges, 2);
+  assert.equal(JSON.stringify(s.resources), JSON.stringify({ wood: 0, stone: 0 }), 'input not mutated');
+});
+
+test('wood and stone break independently, totals stay exact, and cleared nodes refuse hits', () => {
+  let s = village('Kesi Hill', 1, 'wetland');
+  const hits = {};
+  const hit = (id) => { const r = sim.strike(s, id, hits[id] || 0); assert.ok(r.ok, r.reason); hits[id] = r.done ? 0 : r.hits; s = r.state; return r; };
+  hit('wood1'); hit('stone1'); hit('wood1'); hit('stone1');
+  assert.deepEqual(s.resources, { wood: 0, stone: 0 }, 'interleaved hits award nothing yet');
+  assert.equal(hit('wood1').done, true); assert.deepEqual(s.resources, { wood: 2, stone: 0 });
+  assert.equal(hit('stone1').done, true); assert.deepEqual(s.resources, { wood: 2, stone: 2 });
+  for (let i = 0; i < 6; i++) hit('wood1');
+  assert.equal(s.nodes.wood1.charges, 0); assert.equal(s.resources.wood, 6);
+  assert.equal(sim.strike(s, 'wood1', 0).ok, false, 'a cleared node takes no hits');
+  assert.equal(sim.strike(s, 'committee', 0).ok, false, 'only resource nodes can be hit');
+  assert.equal(sim.strike(s, 'stone1', 99).hits, 3, 'a bogus hit count cannot skip past the break');
+  assert.deepEqual(sim.deserialize(sim.serialize(s)).resources, s.resources, 'totals survive save/load');
+});
+
+test('Level 1 needs only 15 hits of gathering (5 breaks) in every scenario', () => {
+  for (const id of SCENARIOS) {
+    const nodes = D.scenes[D.scenarios[id].scene].hotspots.filter((h) => h.kind === 'node');
+    const per = (res) => nodes.filter((n) => n.res === res)[0].yield;
+    const breaks = Math.ceil(6 / per('wood')) + Math.ceil(4 / per('stone'));
+    assert.equal(breaks * sim.HITS_TO_BREAK, 15, id);
+  }
+});
