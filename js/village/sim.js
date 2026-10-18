@@ -104,7 +104,9 @@
     s.results = s.results || {};
     s.surveys = s.surveys || [];
     s.site = s.site || siteFor(s.scenarioId, s.seed);
-    s.flags = { labOpened: false, optionsReviewed: false, ...s.flags };
+    s.flags = { labUnlocked: false, clearSampleInspected: false, dirtySampleInspected: false, microscopeUsed: false,
+      filterTestCompleted: false, notesReviewed: false, optionsReviewed: false, level2Completed: false, ...s.flags };
+    if (s.completedLevels && s.completedLevels.indexOf(2) >= 0) s.flags.level2Completed = true;
     s.people = s.people || {};
     const used = Object.values(s.people).map((p) => p.name);
     const spare = shuffle(data.namePool, rng(s.seed)).filter((n) => used.indexOf(n) < 0);
@@ -187,25 +189,70 @@
   const surveyDef = (s, id) => sceneOf(s).surveys[id];
   const inLevel2 = (s) => s.level >= 2;
 
-  function openLab(s) {
-    if (!inLevel2(s) || s.builds.lab !== 'built') return { ok: false, state: s, reason: 'The field lab opens in Level 2.' };
-    return { ok: true, state: s.flags.labOpened ? s : setFlag(s, 'labOpened') };
-  }
+  const labDef = (s) => sceneOf(s).lab; // { clear: sourceId, dirty: sourceId }
+  const LAB_ORDER = ['clearSampleInspected', 'dirtySampleInspected', 'microscopeUsed', 'filterTestCompleted'];
+  const LAB_NEEDS = { clearSampleInspected: 'Inspect the clear sample first.', dirtySampleInspected: 'Inspect the cloudy sample first.',
+    microscopeUsed: 'Look through the microscope first.', filterTestCompleted: 'Try the filter first.' };
+  const fail = (s, reason) => ({ ok: false, state: s, reason });
+
+  /* Step 1: the player collects one sample, at today's collection point. */
   function collectSample(s, id) {
-    if (!inLevel2(s)) return { ok: false, state: s, reason: 'Sampling starts in Level 2.' };
-    if (!sampleDef(s, id)) return { ok: false, state: s, reason: 'There is no water to sample here.' };
-    if (s.samples.indexOf(id) >= 0) return { ok: false, state: s, reason: 'You already have a sample from here.' };
+    if (!inLevel2(s)) return fail(s, 'Sampling starts in Level 2.');
+    if (id !== 'source') return fail(s, 'The partner team asked for a sample from today’s collection point.');
+    if (s.samples.indexOf(id) >= 0) return fail(s, 'You already have a sample from here.');
     const t = clone(s); t.samples.push(id);
     return { ok: true, state: t };
   }
-  /* prediction: 'safe' | 'unsafe' | 'unsure' — the player's guess before the test. */
-  function runTest(s, id, prediction) {
-    if (s.samples.indexOf(id) < 0) return { ok: false, state: s, reason: 'Collect a sample first.' };
-    if (s.results[id]) return { ok: false, state: s, reason: 'This sample has been tested.' };
-    if (['safe', 'unsafe', 'unsure'].indexOf(prediction) < 0) return { ok: false, state: s, reason: 'Make a guess first.' };
-    const def = sampleDef(s, id); const t = clone(s);
-    t.results[id] = { prediction, clarity: def.clarity, germ: def.germ, salty: !!def.salty };
+  /* Step 2: bring it to the station. Opening the lab with the sample unlocks it. */
+  function openLab(s) {
+    if (!inLevel2(s) || s.builds.lab !== 'built') return fail(s, 'The field lab opens in Level 2.');
+    if (s.samples.indexOf('source') < 0 && !s.flags.labUnlocked) return fail(s, 'Collect a water sample first.');
+    return { ok: true, state: s.flags.labUnlocked ? s : setFlag(s, 'labUnlocked') };
+  }
+  /* Which lab step is next, and whether a step may run yet. */
+  function nextLabStep(s) {
+    if (!s.flags.labUnlocked) return 'bring';
+    const k = LAB_ORDER.find((f) => !s.flags[f]); if (k) return k;
+    if (s.surveys.length < 2) return 'surveys';
+    if (!s.flags.notesReviewed) return 'notesReviewed';
+    if (!s.flags.optionsReviewed) return 'optionsReviewed';
+    return 'done';
+  }
+  function canRun(s, flag) {
+    if (!inLevel2(s) || !s.flags.labUnlocked) return 'Bring your sample to the lab first.';
+    const i = LAB_ORDER.indexOf(flag);
+    for (let j = 0; j < i; j++) if (!s.flags[LAB_ORDER[j]]) return LAB_NEEDS[LAB_ORDER[j]];
+    return null;
+  }
+  /* Steps 3–4: inspecting a jar runs its tests and records the result (with the guess). */
+  function inspectJar(s, which, prediction) {
+    const flag = which === 'clear' ? 'clearSampleInspected' : 'dirtySampleInspected';
+    const why = canRun(s, flag); if (why) return fail(s, why);
+    if (s.flags[flag]) return { ok: true, state: s, result: s.results[labDef(s)[which]] };
+    if (which === 'clear' && ['safe', 'unsafe', 'unsure'].indexOf(prediction) < 0) return fail(s, 'Make a guess first.');
+    const id = labDef(s)[which]; const def = sampleDef(s, id); const t = clone(s);
+    t.results[id] = { prediction: prediction || null, clarity: def.clarity, germ: def.germ, salty: !!def.salty };
+    t.flags[flag] = true;
     return { ok: true, state: t, result: t.results[id] };
+  }
+  function labStep(flag) {
+    return function (s) {
+      const why = canRun(s, flag); if (why) return fail(s, why);
+      return { ok: true, state: s.flags[flag] ? s : setFlag(s, flag) };
+    };
+  }
+  const useMicroscope = labStep('microscopeUsed');
+  const runFilter = labStep('filterTestCompleted');
+  /* What the filter does to the cloudy sample: clearer, still not safe [game]. */
+  function filterResult(s) {
+    const def = sampleDef(s, labDef(s).dirty);
+    return { before: { clarity: def.clarity, germ: def.germ }, after: { clarity: 'clear', germ: def.germ === 'safe' ? 'safe' : 'risky' } };
+  }
+  function reviewNotes(s) {
+    const why = canRun(s, 'filterTestCompleted') || (!s.flags.filterTestCompleted && LAB_NEEDS.filterTestCompleted);
+    if (why) return fail(s, why);
+    if (s.surveys.length < 2) return fail(s, `Finish the surveys with ${s.people.engineer.name} first.`);
+    return { ok: true, state: s.flags.notesReviewed ? s : setFlag(s, 'notesReviewed') };
   }
   function survey(s, id) {
     if (!inLevel2(s)) return { ok: false, state: s, reason: 'Surveys start in Level 2.' };
@@ -214,9 +261,9 @@
     const t = clone(s); t.surveys.push(id);
     return { ok: true, state: t };
   }
-  const readyForOptions = (s) => Object.keys(s.results).length >= 2 && s.surveys.length >= 2;
+  const readyForOptions = (s) => !!s.flags.notesReviewed;
   function reviewOptions(s) {
-    if (!readyForOptions(s)) return { ok: false, state: s, reason: 'Finish both tests and both surveys first.' };
+    if (!readyForOptions(s)) return { ok: false, state: s, reason: 'Review your field notes first.' };
     return { ok: true, state: s.flags.optionsReviewed ? s : setFlag(s, 'optionsReviewed') };
   }
 
@@ -276,9 +323,19 @@
   }
 
   /* ---- Walkers: who walks where, as the village changes ---------------------------------------- */
+  /* Every route in a scene, as [id, route] pairs (used by the scene, the editor and tests). */
+  function allRoutes(scene) {
+    const r = scene.routes; const out = [];
+    ['waterCollection', 'waterCollectionAfter', 'labApproach'].forEach((k) => { if (r[k]) out.push([k, r[k]]); });
+    (r.ambient || []).forEach((a) => out.push([a.id, a]));
+    return out;
+  }
   function walkerPlan(s, opts) {
-    const routes = sceneOf(s).routes; const after = !!(opts && opts.after) || (routes.collectAfter && s.builds[routes.collectAfter.whenBuilt] === 'built');
-    const plan = [{ id: after ? 'collectAfter' : 'collect', route: after ? routes.collectAfter : routes.collect }];
+    const routes = sceneOf(s).routes; const aft = routes.waterCollectionAfter;
+    const after = !!(opts && opts.after) || (aft && s.builds[aft.whenBuilt] === 'built');
+    const plan = [{ id: after ? 'waterCollectionAfter' : 'waterCollection', route: after ? aft : routes.waterCollection }];
+    const lab = routes.labApproach;
+    if (lab && s.level >= (lab.fromLevel || 1) && (!lab.needsBuilt || s.builds[lab.needsBuilt] === 'built')) plan.push({ id: 'labApproach', route: lab });
     (routes.ambient || []).forEach((a) => plan.push({ id: a.id, route: a, extra: after ? 1 : 0 }));
     return plan;
   }
@@ -287,7 +344,8 @@
   const levelDef = (s) => D().levels.find((l) => l.id === s.level);
   function objectives(s) {
     const l = levelDef(s);
-    return (l ? l.objectives : []).map((o) => ({ id: o.id, text: o.text(s), done: !!o.check(s) }));
+    const label = (id) => ((hotspot(s, id) || {}).label || id).toLowerCase();
+    return (l ? l.objectives : []).map((o) => ({ id: o.id, text: o.text(s, label), done: !!o.check(s) }));
   }
   function nextObjective(s) { return objectives(s).find((o) => !o.done) || null; }
   function levelReady(s) {
@@ -298,6 +356,7 @@
     if (!levelReady(s)) return { ok: false, state: s };
     const t = clone(s);
     t.completedLevels.push(t.level);
+    if (t.level === 2) t.flags.level2Completed = true;
     t.level = Math.min(D().levels.length, t.level + 1);
     return { ok: true, state: t };
   }
@@ -318,7 +377,8 @@
     clone, clamp, hash, rng, shuffle, cleanName, validName, suggestName,
     generateVillage, siteFor, migrate, metrics, sceneOf, hotspot, visible,
     inspect, gather, canBuild, startBuild, finishBuild, setFlag,
-    openLab, collectSample, runTest, survey, readyForOptions, reviewOptions, knownFacts, technologyOptions, walkerPlan,
+    collectSample, openLab, nextLabStep, inspectJar, useMicroscope, runFilter, filterResult, reviewNotes, labDef, sampleDef,
+    survey, readyForOptions, reviewOptions, knownFacts, technologyOptions, walkerPlan, allRoutes,
     levelDef, objectives, nextObjective, levelReady, completeLevel,
     serialize, deserialize,
   };

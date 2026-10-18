@@ -15,7 +15,7 @@
   let s = null;
   // The checklist starts collapsed: the objective chip always shows the next step,
   // and the painted map should stay visible.
-  const ui = { selected: null, watching: false, checklistOpen: false, targets: [], busy: {}, levelShown: false, testing: null, surveying: null };
+  const ui = { selected: null, watching: false, checklistOpen: false, targets: [], busy: {}, levelShown: false, labItem: null, labBusy: null, surveying: null };
   const prefs = (() => {
     const def = { reducedMotion: root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches };
     try { return { ...def, ...JSON.parse(root.localStorage.getItem(PREF_KEY) || '{}') }; } catch (e) { return def; }
@@ -51,8 +51,8 @@
         return sc.hotspots.filter((h) => h.kind === 'node' && need[h.res] && st.nodes[h.id].charges > 0).map((h) => h.id);
       }
       case 'lab': return st.flags.committeeMet ? ['lab'] : ['committee'];
-      case 'openLab': case 'tests': case 'options': return ['lab'];
-      case 'samples': return Object.keys(sc.samples).filter((id) => st.samples.indexOf(id) < 0);
+      case 'sample': return ['source'];
+      case 'bring': case 'clear': case 'dirty': case 'microscope': case 'filter': case 'notes': case 'options': return ['lab'];
       case 'surveys': return Object.keys(sc.surveys).filter((id) => st.surveys.indexOf(id) < 0);
       default: return [];
     }
@@ -218,29 +218,66 @@
     const el = keep && keep.act ? dlg.querySelector(`[data-act="${keep.act}"]${keep.id ? `[data-id="${keep.id}"]` : ''}`) : null;
     (el || dlg.querySelector('.btn.primary') || dlg.querySelector('button')).focus({ preventScroll: true });
   }
-  const showLab = () => refreshDialog(U.lab(s, ui), 'dlg-wide dlg-lab');
+  const LAB_CLS = 'dlg-labscene';
+  const labOpen = () => $('dlg').open && $('dlg').classList.contains(LAB_CLS);
+  function showLab(focusCallout) {
+    refreshDialog(U.labScene(s, ui), LAB_CLS);
+    // On narrow screens the painting pans sideways: centre the selected or next hotspot.
+    const stage = $('dlg').querySelector('.lab-stage');
+    if (stage && stage.scrollWidth > stage.clientWidth) {
+      const hs = $('dlg').querySelector('.lab-hs.active') || $('dlg').querySelector('.lab-hs.next');
+      if (hs) stage.scrollLeft = hs.offsetLeft + hs.offsetWidth / 2 - stage.clientWidth / 2;
+    }
+    if (focusCallout) {
+      const h = $('coTitle'); if (h) h.focus({ preventScroll: true });
+      // When the panel sits below the painting (narrow screens), bring it into view.
+      const co = $('dlg').querySelector('.callout');
+      if (co && root.innerWidth <= 900) co.scrollIntoView({ block: 'nearest', behavior: prefs.reducedMotion ? 'auto' : 'smooth' });
+    }
+  }
   function openLab() {
     const r = sim.openLab(s); if (!r.ok) { toast('Not yet', U.esc(r.reason)); return; }
+    const first = r.state !== s;
+    if (first) { commit(r.state); toast('Sample delivered', 'The field lab is open.', 'good'); }
+    ui.labItem = null; showLab();
+    const next = U.labNext(s); const b = next && $('dlg').querySelector(`.lab-hs[data-id="${next}"]`); if (b) b.focus({ preventScroll: true });
+  }
+  function labItem(id) {
+    ui.labItem = ui.labItem === id ? null : id; showLab(!!ui.labItem);
+    const h = D.lab.hotspots.find((x) => x.id === id); if (h && ui.labItem) announce(h.label);
+  }
+  // A short test animation, then the result. Never more than ~2 seconds.
+  function labRun(kind, fn, done) {
+    if (ui.labBusy) return;
+    ui.labBusy = kind; showLab();
+    setTimeout(() => {
+      ui.labBusy = null; const r = fn();
+      if (!r.ok) { toast('Not yet', U.esc(r.reason)); showLab(); return; }
+      commit(r.state); showLab(true); if (done) done(r);
+    }, prefs.reducedMotion ? 250 : 1800);
+  }
+  const germLabel = (r) => D.results.germ[r.result.germ].label;
+  function labGuess(pred) { labRun('clear', () => sim.inspectJar(s, 'clear', pred), (r) => announce(`Clear sample: germ test ${germLabel(r)}.${r.result.salty ? ' Salty.' : ''}`)); }
+  function labTest() { labRun('dirty', () => sim.inspectJar(s, 'dirty'), (r) => announce(`Cloudy sample: germ test ${germLabel(r)}.`)); }
+  function labStep(id) {
+    if (id === 'microscope') { const r = sim.useMicroscope(s); if (!r.ok) { toast('Not yet', U.esc(r.reason)); return; } commit(r.state); ui.labItem = 'filter'; showLab(true); return; }
+    if (id === 'filter') labRun('filter', () => sim.runFilter(s), () => announce('Filtered: clearer, but germs remain.'));
+  }
+  function labNotes() {
+    const r = sim.reviewNotes(s); if (!r.ok) { toast('Not yet', U.esc(r.reason)); return; }
     if (r.state !== s) commit(r.state);
-    showLab();
+    openOptions();
+  }
+  function gotoSurvey() {
+    const id = Object.keys(sim.sceneOf(s).surveys).find((x) => s.surveys.indexOf(x) < 0); if (!id) return;
+    closeDialog(); setTimeout(() => inspect(id), 0);
   }
   function collectSample(id) {
     const r = sim.collectSample(s, id); if (!r.ok) { toast('Not now', U.esc(r.reason)); return; }
     scene.floatText(id, '+1 water sample');
     commit(r.state);
-    const left = Object.keys(sim.sceneOf(s).samples).filter((x) => s.samples.indexOf(x) < 0).length;
-    toast('Sample collected', left ? 'Collect one more, then test them at the field lab.' : 'Test your samples at the field lab.', 'good');
-    announce('Water sample collected.');
-  }
-  function predict(id, guess) {
-    if (ui.testing) return;
-    ui.testing = id; showLab();
-    setTimeout(() => {
-      const r = sim.runTest(s, id, guess); ui.testing = null;
-      if (!r.ok) { showLab(); return; }
-      commit(r.state); showLab();
-      announce(`${sim.hotspot(s, id).label}: germ test ${D.results.germ[r.result.germ].label}. ${r.result.salty ? 'Salty. ' : ''}`);
-    }, prefs.reducedMotion ? 250 : 2000);
+    toast('Sample collected', 'Carry it to the field-testing station.', 'good');
+    announce('Water sample collected. Bring it to the field-testing station.');
   }
   function doSurvey(id) {
     if (ui.surveying) return;
@@ -258,10 +295,9 @@
   function openOptions() { refreshDialog(U.options(s), 'dlg-wide dlg-options'); }
   function optionsAgree() {
     const r = sim.reviewOptions(s); if (!r.ok) { toast('Not yet', U.esc(r.reason)); return; }
-    closeDialog(); commit(r.state);
+    closeDialog(); ui.labItem = null; commit(r.state);
     toast('Recommendation shared', 'The committee will make the final choice when building starts.', 'good');
   }
-  function gotoHotspot(id) { closeDialog(); setTimeout(() => inspect(id), 0); }
 
   /* ---- Events (delegated) ------------------------------------------------------------------------- */
   function act(a, id, el) {
@@ -291,11 +327,15 @@
       case 'next-level': closeDialog(); break;
       case 'open-lab': openLab(); break;
       case 'collect-sample': collectSample(id); break;
-      case 'predict': predict(id, el.dataset.pred); break;
+      case 'lab-item': labItem(id); break;
+      case 'lab-guess': labGuess(el.dataset.pred); break;
+      case 'lab-test': labTest(); break;
+      case 'lab-step': labStep(id); break;
+      case 'lab-notes': labNotes(); break;
+      case 'lab-goto-survey': gotoSurvey(); break;
       case 'survey': doSurvey(id); break;
       case 'open-options': openOptions(); break;
       case 'options-agree': optionsAgree(); break;
-      case 'goto': gotoHotspot(id); break;
       case 'new-village':
         if (root.confirm('Start a new village? Your current village will be replaced.')) { closeDialog(); s = null; showStart(); showNameForm(); }
         break;
@@ -342,7 +382,7 @@
   /* Debug and test hooks (used by tests/smoke.mjs). */
   WV.debug = {
     get state() { return s; }, get ui() { return ui; },
-    act, inspect, gather, build, watchWalk, committeeAgree, openLab, collectSample, predict, doSurvey, openOptions, optionsAgree,
+    act, inspect, gather, build, watchWalk, committeeAgree, openLab, collectSample, labItem, labGuess, labTest, labStep, labNotes, doSurvey, openOptions, optionsAgree,
     newVillage: (name, scenarioId, salt) => { s = sim.generateVillage(name, salt == null ? 1 : salt, scenarioId); persist(); enterGame(); },
   };
 })(window);

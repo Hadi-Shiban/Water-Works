@@ -24,7 +24,7 @@ Progress saves automatically in your browser (`localStorage`). Use **Menu → Ne
 
 ```bash
 node --test tests/                                   # model unit tests
-node --experimental-websocket tests/smoke.mjs        # Levels 1–2 in all scenarios, desktop/tablet/phone, in headless Chrome (needs Chrome)
+node --experimental-websocket tests/smoke.mjs        # Levels 1–2 incl. the lab scene, all scenarios, desktop/tablet/phone, in headless Chrome (needs Chrome)
 ```
 
 ## Artwork
@@ -35,7 +35,17 @@ node --experimental-websocket tests/smoke.mjs        # Levels 1–2 in all scena
 | Red Rock Plateau (drilled well) | `assets/images/village/red-rock-plateau/bg-main.png` |
 | Wetland Crossroads (rainwater) | `assets/images/village/wetland-crossroads/bg-main.png` |
 
-All three are 1672×941 and drawn at their own aspect ratio. To replace one, keep the filename and size, or update `w`, `h`, `hotspots` and `routes` for that scene in `js/village/data.js` (use `?dev=routes`). The earlier `assets/environments/env-0*.png` panoramas are kept for the municipal prototype and future scenarios.
+Field lab scenes (Level 2), one per scenario:
+
+| Scenario | Lab scene |
+| --- | --- |
+| Highland Springs | `assets/images/lab/highland-springs/lab-scene.png` |
+| Red Rock Plateau | `assets/images/lab/red-rock-plateau/lab-scene.png` |
+| Wetland Crossroads | `assets/images/lab/wetland-crossroads/lab-scene.png` |
+
+The lab scenes show the charity: water wordmark (sanctioned student collaboration). Lab hotspot rectangles live in `WV.data.lab` and are shared by all three benches; `coverBranding: true` would hide the wordmark with neutral labels.
+
+All six images are 1672×941 and drawn at their own aspect ratio. To replace one, keep the filename and size, or update `w`, `h`, `hotspots` and `routes` for that scene in `js/village/data.js` (use `?dev=routes`). The earlier `assets/environments/env-0*.png` panoramas are kept for the municipal prototype and future scenarios.
 
 ## Village game files
 

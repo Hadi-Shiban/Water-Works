@@ -364,6 +364,73 @@ a { color: var(--water-700); }
 .sitecard li b { font-weight: 600; text-align: right; }
 .dlg-foot .foot-note { margin-right: auto; align-self: center; font-size: 13px; }
 
+/* ---- Illustrated lab scene ------------------------------------------------------------------ */
+.dlg-labscene { width: min(1440px, calc(100% - 24px)); max-height: calc(100% - 16px); }
+.dlg-labscene .dlg-head { padding-bottom: 8px; }
+.lab-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; padding: 0 16px 16px; align-items: start; }
+.lab-stage { min-width: 0; }
+.lab-art { position: relative; aspect-ratio: 1672 / 941; border-radius: 6px; overflow: hidden; box-shadow: 0 2px 10px rgba(0, 0, 0, .25); }
+.lab-art img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; user-select: none; }
+.lab-hs { position: absolute; padding: 0; border: 2px solid transparent; border-radius: 8px; background: transparent; cursor: pointer;
+  transition: background var(--dur-1), border-color var(--dur-1), box-shadow var(--dur-2); }
+.lab-hs:hover, .lab-hs:focus-visible { border-color: var(--yellow); background: rgba(255, 238, 170, .16); outline: none; }
+.lab-hs:focus-visible { box-shadow: 0 0 0 3px rgba(23, 25, 28, .65); }
+.lab-hs.active { border-color: var(--yellow); background: rgba(255, 238, 170, .22); }
+.lab-hs.next { border-color: rgba(242, 193, 24, .9); animation: lab-pulse 1.8s ease-in-out infinite; }
+@keyframes lab-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(242, 193, 24, .55), inset 0 0 18px rgba(255, 226, 122, .35); } 50% { box-shadow: 0 0 0 10px rgba(242, 193, 24, 0), inset 0 0 26px rgba(255, 226, 122, .5); } }
+.lab-tag { position: absolute; left: 50%; top: 4px; transform: translateX(-50%); white-space: nowrap; font: 600 12px var(--font-ui); color: #fff8e6;
+  background: rgba(23, 25, 28, .82); padding: 4px 8px; border-radius: 3px; opacity: 0; transition: opacity var(--dur-1); pointer-events: none; }
+.lab-hs:hover .lab-tag, .lab-hs:focus-visible .lab-tag, .lab-hs.next .lab-tag, .lab-hs.active .lab-tag { opacity: 1; }
+.lab-hs.next .lab-tag { background: #1b1406; color: var(--yellow); }
+.lab-hs.done::after { content: "✓"; position: absolute; right: 4px; bottom: 4px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+  font: 700 13px var(--font-ui); color: #fff; background: var(--ok-600); box-shadow: 0 1px 3px rgba(0, 0, 0, .4); }
+/* Neutral labels painted over the real organisation's logo in the artwork. */
+.lab-cover { position: absolute; pointer-events: none; border-radius: 3px; }
+.lab-cover.case { background: linear-gradient(170deg, #3d3c41, #333237); display: grid; place-items: center; }
+.lab-cover.case b { font: 700 clamp(7px, .9vw, 13px)/1 var(--font-ui); letter-spacing: .14em; color: #2b2a2e; background: #e9dfc6; padding: .45em .7em; border-radius: 2px;
+  transform: rotate(-2deg); box-shadow: 0 1px 2px rgba(0, 0, 0, .4); }
+.lab-cover.scope { background: linear-gradient(180deg, #ece3cf, #e2d7bf); border-radius: 2px; }
+.lab-side { display: grid; gap: 12px; min-width: 0; }
+.callout { display: grid; gap: 10px; align-content: start; padding: 14px; background: var(--paper-100); border-radius: 8px; border-top: 4px solid var(--yellow); min-height: 220px; }
+.co-head h3 { font: 600 20px/1.2 var(--font-display); }
+.co-head h3:focus { outline: none; }
+.colony-n { font-size: 12.5px; color: var(--ink-soft); max-width: 9em; }
+.health { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; background: #fff3e4; color: #6b3f12; padding: 8px 10px; border-radius: 6px; }
+.health .ic { color: #b0560b; margin-top: 1px; }
+.scopes { display: flex; gap: 14px; justify-content: center; }
+.scopes figure { margin: 0; display: grid; justify-items: center; gap: 4px; font-size: 12px; color: var(--ink-soft); }
+.magnifier { display: block; border-radius: 50%; background-repeat: no-repeat; box-shadow: 0 0 0 4px #fff, 0 0 0 5px #8f8a7e, 0 3px 8px rgba(0, 0, 0, .3); }
+.keyfacts { display: grid; gap: 4px; font-size: 13.5px; padding-left: 16px; list-style: disc; }
+.filterflow { display: flex; align-items: center; justify-content: center; gap: 14px; }
+.filterflow .glass-svg { width: 38px; height: 50px; }
+.filterflow .funnel { color: var(--ink-faint); font-size: 18px; transform: rotate(-90deg); }
+.filterflow.running .funnel { animation: drip .6s ease-in-out infinite alternate; }
+@keyframes drip { to { color: var(--water-600); transform: rotate(-90deg) translateY(3px); } }
+.notes { display: grid; gap: 6px; }
+.notes li { display: grid; gap: 2px; font-size: 13px; padding: 6px 8px; background: #fff; border-radius: 4px; }
+.notes li span { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; color: var(--ink-soft); }
+.lab-tasks ol { display: grid; gap: 5px; }
+.lab-tasks li { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--ink-faint); }
+.lab-tasks li .ic { color: var(--paper-400); }
+.lab-tasks li.done { color: var(--ink-faint); text-decoration: line-through; text-decoration-color: rgba(0, 0, 0, .25); }
+.lab-tasks li.done .ic { color: var(--ok-600); }
+.lab-tasks li.now { color: var(--ink); font-weight: 650; }
+.lab-tasks li.now .ic { color: var(--yellow-600); }
+@media (max-width: 1100px) {
+  .lab-wrap { grid-template-columns: minmax(0, 1fr) 290px; gap: 10px; padding: 0 10px 12px; }
+  .callout { min-height: 0; padding: 12px; }
+  .lab-tasks li { font-size: 12px; }
+}
+@media (max-width: 900px) {
+  .lab-wrap { grid-template-columns: 1fr; }
+}
+@media (max-width: 820px) {
+  .dlg-labscene { width: 100%; max-height: 100%; border-radius: 0; }
+  .lab-stage { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .lab-art { min-width: 680px; }
+  .lab-tag { font-size: 11px; }
+}
+
 /* ---- Options board -------------------------------------------------------------------------- */
 .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .opt { display: grid; gap: 4px; align-content: start; padding: 10px 12px; border-radius: 6px; background: var(--paper-100); border-left: 4px solid var(--paper-300); font-size: 13.5px; }

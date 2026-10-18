@@ -129,58 +129,81 @@ async function playCampaign(scenario, vp) {
 
   // ---- Level 2: investigate the water --------------------------------------------
   const music0 = await evaluate('WV.audio.state().position');
+  check(await evaluate('WV.scene.walkerPositions().some((w) => w.route === "labApproach")'), 'a villager walks samples to the station in Level 2');
   await click('#hotspots [data-id="lab"]'); await sleep(250);
-  await click('#sheet [data-act="open-lab"]'); await sleep(400);
-  check(await S('s.flags.labOpened') && await evaluate('document.getElementById("dlg").open && !!document.querySelector(".samples")'), 'field lab opens');
-  await click('[data-act="goto"]'); await sleep(400);
-  const samples = await S('Object.keys(WV.sim.sceneOf(s).samples)');
-  for (const id of samples) {
-    await click(`#hotspots [data-id="${id}"]`); await sleep(250);
-    if (await evaluate('!!document.querySelector(\'#sheet [data-act="collect-sample"]\')')) await click('#sheet [data-act="collect-sample"]');
-    await sleep(250);
-  }
-  check(await S('s.samples.length === 2'), 'collected two water samples');
+  check(await evaluate('!document.querySelector(\'#sheet [data-act="open-lab"]\')'), 'lab stays closed until a sample is collected');
+  await click('#hotspots [data-id="source"]'); await sleep(250);
+  await click('#sheet [data-act="collect-sample"]'); await sleep(300);
+  check(await S('s.samples.includes("source")'), 'collected a water sample at the collection point');
   await click('#hotspots [data-id="lab"]'); await sleep(250);
-  await click('#sheet [data-act="open-lab"]'); await sleep(400);
-  const clearUnsafe = await S('Object.entries(WV.sim.sceneOf(s).samples).find(([, v]) => v.clarity === "clear" && v.germ !== "safe")[0]');
-  for (const id of samples) {
-    await click(`[data-act="predict"][data-id="${id}"][data-pred="${id === clearUnsafe ? 'safe' : 'unsure'}"]`); await sleep(500);
-    if (vp[0] >= 1000 && id === samples[0]) await shot(`${scenario}-7-lab-testing`);
-    await sleep(2100);
-  }
-  check(await S('Object.keys(s.results).length === 2'), 'both samples tested');
-  check(await evaluate('document.querySelectorAll(".sample.done").length === 2'), 'lab shows both results');
-  check(await evaluate('/clear water isn.t always safe/i.test(document.querySelector(".dlg").textContent)'), 'guessing "safe" on clear-but-unsafe water gets the surprise');
-  if (vp[0] >= 1000) await shot(`${scenario}-8-lab-results`);
-  await click('[data-act="open-options"]'); await sleep(300);
-  check(await evaluate('document.querySelectorAll(".opt.unknown").length > 0'), 'options wait for surveys');
-  await click('[data-act="close-dialog"]'); await sleep(300);
+  await click('#sheet [data-act="open-lab"]'); await sleep(500);
+  check(await S('s.flags.labUnlocked') && await evaluate('document.getElementById("dlg").classList.contains("dlg-labscene")'), 'bringing the sample opens the lab scene');
+  const labImg = await evaluate('document.querySelector(".lab-art img").getAttribute("src")');
+  const wantImg = { highland: 'highland-springs', plateau: 'red-rock-plateau', wetland: 'wetland-crossroads' }[scenario];
+  check(labImg.includes(`assets/images/lab/${wantImg}/lab-scene.png`) && await evaluate('document.querySelector(".lab-art img").naturalWidth === 1672'), `the ${wantImg} lab image loads`);
+  check(await evaluate('[...document.querySelectorAll(".lab-hs")].every((b) => b.tagName === "BUTTON" && b.tabIndex === 0 && b.getAttribute("aria-label"))'), 'every lab hotspot is a labelled, focusable button');
+  check(await evaluate('document.querySelectorAll(".lab-hs").length >= 10 && document.querySelectorAll(".lab-cover").length === 0'), 'lab hotspots render, with the charity: water wordmarks shown');
+  check(await evaluate('document.querySelector(".lab-hs.next").dataset.id === "clear"'), 'the clear jar glows as the next step');
+  if (vp[0] >= 1000) await shot(`${scenario}-7-lab`);
+  // clear sample: guess "safe" on clear-but-unsafe water
+  await evaluate('document.querySelector(\'.lab-hs[data-id="clear"]\').focus(); true');
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+  await sleep(300);
+  check(await evaluate('!!document.querySelector(\'[data-act="lab-guess"]\')'), 'keyboard Enter opens the clear jar');
+  await click('[data-act="lab-guess"][data-pred="safe"]'); await sleep(2300);
+  check(await S('s.flags.clearSampleInspected'), 'clear sample inspected');
+  check(await evaluate('/Looks clean doesn.t mean safe to drink/.test(document.querySelector(".callout").textContent) && !!document.querySelector(".callout .health")'), 'the clear sample teaches looks-clean-isn’t-safe, with a health note');
+  await shot(`${scenario}-8-clear-${vp[0]}`);
+  if (vp[0] < 600) check(await evaluate(`(() => { const st = document.querySelector('.lab-stage'), b = document.querySelector('.lab-hs.next').getBoundingClientRect(), r = st.getBoundingClientRect(); return b.left >= r.left - 1 && b.right <= r.right + 1; })()`), 'on phones the lab pans to the next hotspot');
+  await click('.lab-hs[data-id="dirty"]'); await sleep(250);
+  await click('[data-act="lab-test"]'); await sleep(2300);
+  check(await S('s.flags.dirtySampleInspected'), 'cloudy sample inspected');
+  check(await evaluate('document.querySelectorAll(".callout .colonies circle").length >= 18'), 'the cloudy sample shows many more germ colonies');
+  await click('.lab-hs[data-id="microscope"]'); await sleep(250);
+  check(await evaluate('document.querySelectorAll(".callout .magnifier").length === 2'), 'the microscope shows both magnified views');
+  if (vp[0] >= 1000) await shot(`${scenario}-9-microscope`);
+  await click('[data-act="lab-step"][data-id="microscope"]'); await sleep(300);
+  check(await S('s.flags.microscopeUsed'), 'microscope used');
+  await click('[data-act="lab-step"][data-id="filter"]'); await sleep(2300);
+  check(await S('s.flags.filterTestCompleted') && await evaluate('/Clearer isn.t the same as safe/.test(document.querySelector(".callout").textContent)'), 'the filter makes it clearer, not safe');
+  if (vp[0] >= 1000) await shot(`${scenario}-10-filter`);
+  await click('.lab-hs[data-id="notebook"]'); await sleep(250);
+  check(await evaluate('/survey/i.test(document.querySelector(".callout").textContent)'), 'notes ask for the surveys first');
+  await click('[data-act="lab-goto-survey"]'); await sleep(500);
   check(await evaluate('document.querySelectorAll("#hotspots .hs-survey:not([hidden])").length === 2'), 'survey sites appear in Level 2');
   for (const id of await S('Object.keys(WV.sim.sceneOf(s).surveys)')) {
     await click(`#hotspots [data-id="${id}"]`); await sleep(250);
     await click('#sheet [data-act="survey"]'); await sleep(1800);
   }
   check(await S('s.surveys.length === 2'), 'both surveys done');
-  if (vp[0] >= 1000) await shot(`${scenario}-9-survey`);
+  const musicMid = await evaluate('WV.audio.state()');
+  check(musicMid.playing && musicMid.position > music0 + 5, `music kept playing through the lab and surveys (${music0.toFixed(1)}s → ${musicMid.position.toFixed(1)}s)`);
+  // save mid-level, reload, continue: lab progress must survive
+  await go(`${BASE}/index.html`); await click('#continueBtn'); await sleep(600);
+  check(await S('s.level === 2 && s.flags.labUnlocked && s.flags.clearSampleInspected && s.flags.dirtySampleInspected && s.flags.microscopeUsed && s.flags.filterTestCompleted && s.surveys.length === 2'), 'continue restores mid-Level-2 lab progress');
   await click('#hotspots [data-id="lab"]'); await sleep(250);
-  await click('#sheet [data-act="open-lab"]'); await sleep(300);
-  await click('[data-act="open-options"]'); await sleep(300);
+  await click('#sheet [data-act="open-lab"]'); await sleep(400);
+  check(await evaluate('document.querySelectorAll(".lab-hs.done").length === 4 && document.querySelector(".lab-hs.next").dataset.id === "notebook"'), 'the lab shows four finished steps and the notebook next');
+  await click('.lab-hs[data-id="notebook"]'); await sleep(250);
+  if (vp[0] >= 1000) await shot(`${scenario}-11-notes`);
+  await click('[data-act="lab-notes"]'); await sleep(400);
+  check(await S('s.flags.notesReviewed'), 'field notes reviewed');
   const primary = await S('WV.data.scenarios[s.scenarioId].primaryTech');
   check(await evaluate(`!!document.querySelector('.opt.recommended') && document.querySelectorAll('.opt.recommended').length === 1 && /${primary === 'gravityFed' ? 'Gravity' : primary === 'drilledWell' ? 'Drilled' : 'Rainwater'}/.test(document.querySelector('.opt.recommended').textContent)`), `experts recommend the ${primary}`);
-  if (vp[0] >= 1000) await shot(`${scenario}-10-options`);
+  if (vp[0] >= 1000) await shot(`${scenario}-12-options`);
   await click('[data-act="options-agree"]'); await sleep(1500);
   check(await evaluate('document.getElementById("dlg").open && /Level 2 complete/.test(document.getElementById("dlg").textContent)'), 'Level 2 celebration opens');
-  if (vp[0] >= 1000) await shot(`${scenario}-11-level2`);
+  if (vp[0] >= 1000) await shot(`${scenario}-13-level2`);
   await click('[data-act="next-level"]'); await sleep(400);
   check(await S('s.level === 3 && s.completedLevels.join() === "1,2"'), 'advanced to Level 3');
-  const music1 = await evaluate('WV.audio.state()');
-  check(music1.playing && music1.position > music0, `music kept playing through both levels (${music0.toFixed(1)}s → ${music1.position.toFixed(1)}s)`);
+  check(await evaluate('WV.audio.state().playing'), 'music still playing after Continue and the level change');
 
   // save → reload → continue
   await go(`${BASE}/index.html`);
   check(await evaluate('!document.getElementById("continueBtn").hidden'), 'Continue offered after reload');
   await click('#continueBtn'); await sleep(600);
-  check(await S(`s.level === 3 && s.builds.lab === 'built' && s.name === 'Smoke Ridge' && s.scenarioId === '${scenario}' && Object.keys(s.results).length === 2 && s.surveys.length === 2 && s.flags.optionsReviewed`), 'continue restores level, buildings, lab results and surveys');
+  check(await S(`s.level === 3 && s.builds.lab === 'built' && s.name === 'Smoke Ridge' && s.scenarioId === '${scenario}' && Object.keys(s.results).length === 2 && s.surveys.length === 2 && s.flags.optionsReviewed && s.flags.level2Completed`), 'continue restores level, buildings, lab results and surveys');
   check(await evaluate('document.querySelector(".site").getAttribute("data-state") === "built"'), 'built station is drawn after continue');
 }
 
@@ -210,13 +233,13 @@ await go(`${BASE}/index.html?scenario=highland`); await click('#continueBtn'); a
 check(await evaluate('!document.querySelector(".dev-panel") && !document.querySelector(".dev-layer")'), 'route editor is off in normal play');
 await go(`${BASE}/index.html?dev=routes`); await click('#continueBtn'); await sleep(800);
 check(await evaluate('!!document.querySelector(".dev-panel") && document.querySelectorAll(".dev-handle").length > 20 && !!document.querySelector(".dev-grid")'), 'dev=routes shows grid, waypoints and panel');
-const beforePt = await evaluate('JSON.stringify(WV.sim.sceneOf(WV.debug.state).routes.collect.points[5])');
-const hp = await evaluate(`(() => { const r = document.querySelector('.dev-handle[data-route="collect"][data-i="5"]').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()`);
+const beforePt = await evaluate('JSON.stringify(WV.sim.sceneOf(WV.debug.state).routes.waterCollection.points[5])');
+const hp = await evaluate(`(() => { const r = document.querySelector('.dev-handle[data-route="waterCollection"][data-i="5"]').getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()`);
 await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: hp[0], y: hp[1], button: 'left', clickCount: 1 });
 for (let i = 1; i <= 5; i++) await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: hp[0] + i * 8, y: hp[1] + i * 4, button: 'left', buttons: 1 });
 await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: hp[0] + 40, y: hp[1] + 20, button: 'left', clickCount: 1 });
 await sleep(200);
-const afterPt = await evaluate('JSON.stringify(WV.sim.sceneOf(WV.debug.state).routes.collect.points[5])');
+const afterPt = await evaluate('JSON.stringify(WV.sim.sceneOf(WV.debug.state).routes.waterCollection.points[5])');
 check(afterPt !== beforePt, `dragging waypoint 5 moves it (${beforePt} → ${afterPt})`);
 await click('[data-dev="copy"]'); await sleep(100);
 check(await evaluate(`document.querySelector('[data-dev="out"]').value.includes(${JSON.stringify(afterPt)})`), 'copied JSON contains the edited waypoint');

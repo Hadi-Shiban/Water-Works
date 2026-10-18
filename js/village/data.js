@@ -106,10 +106,12 @@
         structureScale: 1.05, walkerScale: [1.0, 1.2],
         cottages: [],
         routes: {
-          collect: { label: 'Water collection: plaza to spring pool', speed: 34, walkers: 3, spacing: 7, mode: 'outAndBack', cans: true, lit: true,
+          waterCollection: { label: 'Water collection: plaza to spring pool', speed: 34, walkers: 3, spacing: 7, mode: 'outAndBack', cans: true, lit: true,
             points: [[50, 49], [46, 47], [43, 45], [40, 43.5], [37.5, 42.5], [35, 41], [33, 38.5], [31, 35.5], [29, 32.5], [27, 29.8], [25.3, 27.6], [24.2, 25.2], [23.3, 22.6], [22, 20.2], [20, 18.4], [17.5, 17.6]] },
-          collectAfter: { label: 'Water collection: plaza tapstand', whenBuilt: 'waterPoint', speed: 30, walkers: 2, spacing: 4, mode: 'outAndBack', cans: true, lit: true,
+          waterCollectionAfter: { label: 'Water collection: plaza tapstand', whenBuilt: 'waterPoint', speed: 30, walkers: 2, spacing: 4, mode: 'outAndBack', cans: true, lit: true,
             points: [[46, 47], [50, 49], [54, 50.5], [57, 51]] },
+          labApproach: { label: 'Samples to the field-testing station', fromLevel: 2, needsBuilt: 'lab', speed: 26, walkers: 1, spacing: 0, mode: 'outAndBack', cans: false, jar: true, lit: false,
+            points: [[57, 55], [62, 56.8], [67, 57.4], [72, 57.2], [77, 57], [81, 57.4]] },
           ambient: [
             { id: 'quarry', label: 'Plaza to quarry', speed: 30, walkers: 1, spacing: 0, mode: 'outAndBack', cans: false,
               points: [[56, 52], [61, 53.5], [66, 55], [71, 54.5], [75, 52], [77, 47], [77.5, 42], [78.5, 37.5], [80.5, 34]] },
@@ -149,9 +151,10 @@
         samples: {
           source: { looks: 'Clear and sparkling', clarity: 'clear', germ: 'unsafe', salty: false,
             clue: 'Germs from animals and hands get into an open pool, even when the water looks perfect.' },
-          river: { looks: 'Slightly cloudy', clarity: 'cloudy', germ: 'unsafe', salty: false,
+          river: { looks: 'Slightly cloudy', clarity: 'cloudy', germ: 'unsafe', salty: false, colonies: 18,
             clue: 'Cattle upstream and soil washing in after rain.' },
         },
+        lab: { clear: 'source', dirty: 'river' },
         surveys: {
           survey1: { title: 'Survey the spring', reveals: ['springAbove', 'springHeadM', 'springYearRound', 'springDistanceKm'],
             done: 'The spring sits well above the village and the committee says it has never run dry.' },
@@ -166,10 +169,12 @@
         structureScale: 0.95, walkerScale: [0.95, 1.15],
         cottages: [],
         routes: {
-          collect: { label: 'Water collection: square to river dock', speed: 30, walkers: 3, spacing: 6, mode: 'outAndBack', cans: true, lit: true,
+          waterCollection: { label: 'Water collection: square to river dock', speed: 30, walkers: 3, spacing: 6, mode: 'outAndBack', cans: true, lit: true,
             points: [[54, 56], [56.5, 59], [59.5, 62], [62.5, 64.5], [65, 67], [67, 69.5], [67.5, 72.5]] },
-          collectAfter: { label: 'Water collection: well beside the square', whenBuilt: 'waterPoint', speed: 28, walkers: 2, spacing: 4, mode: 'outAndBack', cans: true, lit: true,
+          waterCollectionAfter: { label: 'Water collection: well beside the square', whenBuilt: 'waterPoint', speed: 28, walkers: 2, spacing: 4, mode: 'outAndBack', cans: true, lit: true,
             points: [[54, 56], [57, 57.5], [60, 58.5]] },
+          labApproach: { label: 'Samples to the field-testing station', fromLevel: 2, needsBuilt: 'lab', speed: 24, walkers: 1, spacing: 0, mode: 'outAndBack', cans: false, jar: true, lit: false,
+            points: [[57, 52.5], [55, 55], [52.5, 57], [50, 58.3], [47.5, 59.3]] },
           ambient: [
             { id: 'lumber', label: 'Square to lumber yard', speed: 30, walkers: 1, spacing: 0, mode: 'outAndBack', cans: false,
               points: [[46, 57], [40, 57.5], [35, 56], [31, 53], [26, 51], [20, 51.5], [14, 50], [10, 47.5]] },
@@ -207,11 +212,12 @@
           survey2: { title: 'Canyon rim', text: 'A spring spills down the canyon wall, far below the village.' },
         },
         samples: {
-          source: { looks: 'Slightly cloudy', clarity: 'cloudy', germ: 'unsafe', salty: false,
+          source: { looks: 'Slightly cloudy', clarity: 'cloudy', germ: 'unsafe', salty: false, colonies: 18,
             clue: 'Animals upstream and soil washing in after storms.' },
           well: { looks: 'Clear', clarity: 'clear', germ: 'risky', salty: false,
             clue: 'An open well collects dust, leaves and whatever is on the bucket.' },
         },
+        lab: { clear: 'well', dirty: 'source' },
         surveys: {
           survey1: { title: 'Read the test rig', reveals: ['groundwaterDepthM', 'groundwaterSalty', 'rigAccess'],
             done: 'Fresh groundwater, deep down, and the road can carry a drilling rig.' },
@@ -226,10 +232,12 @@
         structureScale: 1.0, walkerScale: [0.95, 1.15],
         cottages: [],
         routes: {
-          collect: { label: 'Water collection: well square to pond dock', speed: 30, walkers: 3, spacing: 6, mode: 'outAndBack', cans: true, lit: true,
+          waterCollection: { label: 'Water collection: well square to pond dock', speed: 30, walkers: 3, spacing: 6, mode: 'outAndBack', cans: true, lit: true,
             points: [[49, 47], [51.5, 50], [54, 53], [57, 55.5], [61, 57.5], [64.5, 60], [67.5, 63], [70.5, 66], [72.5, 68]] },
-          collectAfter: { label: 'Water collection: school tank', whenBuilt: 'waterPoint', speed: 28, walkers: 2, spacing: 4, mode: 'outAndBack', cans: true, lit: true,
+          waterCollectionAfter: { label: 'Water collection: school tank', whenBuilt: 'waterPoint', speed: 28, walkers: 2, spacing: 4, mode: 'outAndBack', cans: true, lit: true,
             points: [[52, 47], [57, 47.5], [62, 48.5], [66, 50]] },
+          labApproach: { label: 'Samples to the field-testing station', fromLevel: 2, needsBuilt: 'lab', speed: 26, walkers: 1, spacing: 0, mode: 'outAndBack', cans: false, jar: true, lit: false,
+            points: [[54, 50.5], [59, 51.5], [64, 53], [69, 54], [74, 54.5], [78.5, 53], [81.5, 50], [83, 47.5]] },
           ambient: [
             { id: 'lumber', label: 'Square to lumber yard', speed: 30, walkers: 1, spacing: 0, mode: 'outAndBack', cans: false,
               points: [[45, 43], [40, 41], [35, 39.5], [29, 39], [24, 40], [21, 36], [19.5, 31], [18, 26], [14, 23]] },
@@ -265,17 +273,51 @@
           survey2: { title: 'South boardwalk', text: 'The boardwalk crosses the lowest, wettest part of the village.' },
         },
         samples: {
-          source: { looks: 'Brownish and cloudy', clarity: 'cloudy', germ: 'unsafe', salty: false,
+          source: { looks: 'Brownish and cloudy', clarity: 'cloudy', germ: 'unsafe', salty: false, colonies: 22,
             clue: 'Ducks, cattle and floodwater all reach the pond.' },
           well: { looks: 'Clear', clarity: 'clear', germ: 'unsafe', salty: true, reveals: ['groundwaterSalty'],
             clue: 'Floodwater seeps into shallow wells, and here the groundwater is salty too.' },
         },
+        lab: { clear: 'well', dirty: 'source' },
         surveys: {
           survey1: { title: 'Measure the roofs', reveals: ['bigRoofsM2', 'rainfallMm'],
             done: 'Big, sturdy roofs, and the school’s rain gauge shows rain most of the year.' },
           survey2: { title: 'Walk the wetland', reveals: ['springAbove', 'springHeadM', 'springYearRound', 'springDistanceKm', 'groundwaterDepthM', 'rigAccess'],
             done: 'Flat ground with no springs nearby, and groundwater only a few metres down.' },
         },
+      },
+    },
+
+    /* ---- Field lab scenes ------------------------------------------------------------
+       Rectangles are percent of the lab painting (x, y, w, h). All three paintings share
+       one bench layout, so hotspots are shared; insets and covers differ slightly.
+       The paintings show the charity: water wordmark on the case and microscope; this is
+       a sanctioned student collaboration, so it is shown. coverBranding: true would hide
+       it with neutral labels (rects in scenes.*.covers) without editing the art.     */
+    lab: {
+      w: 1672, h: 941, coverBranding: false,
+      hotspots: [
+        { id: 'clear', label: 'Clear sample jar', rect: [35.5, 51, 10.5, 23], step: true },
+        { id: 'dirty', label: 'Cloudy sample jar', rect: [50, 51, 10, 23], step: true },
+        { id: 'microscope', label: 'Microscope', rect: [66, 32, 12, 40], step: true },
+        { id: 'filter', label: 'Filter stand', rect: [77.5, 55, 12, 30], step: true },
+        { id: 'notebook', label: 'Field notebook', rect: [7.5, 73, 33, 23], step: true },
+        { id: 'map', label: 'Village and source map', rect: [0.5, 3, 22, 37] },
+        { id: 'reagents', label: 'Test tubes and reagents', rect: [18.5, 45, 15.5, 19] },
+        { id: 'petri', label: 'Petri dishes', rect: [39, 74, 18.5, 8.5] },
+        { id: 'strip', label: 'Indicator strip', rect: [58, 79, 15, 9] },
+        { id: 'cylinder', label: 'Measuring cylinder', rect: [61.5, 52.5, 4.3, 26] },
+      ],
+      scenes: {
+        highland: { image: 'assets/images/lab/highland-springs/lab-scene.png',
+          insets: { clear: [40.8, 37, 13], dirty: [61.2, 34.8, 14.8] },
+          covers: [{ kind: 'case', rect: [6.6, 52.3, 9.6, 10.8] }, { kind: 'scope', rect: [71, 42.4, 6.4, 8.4] }] },
+        plateau: { image: 'assets/images/lab/red-rock-plateau/lab-scene.png',
+          insets: { clear: [40.8, 37, 13.3], dirty: [60.5, 35.5, 14] },
+          covers: [{ kind: 'case', rect: [6.4, 52.3, 9.8, 10.8] }, { kind: 'scope', rect: [70.6, 42.4, 6.5, 8.4] }] },
+        wetland: { image: 'assets/images/lab/wetland-crossroads/lab-scene.png',
+          insets: { clear: [40.8, 37, 13], dirty: [59.3, 34.8, 13.5] },
+          covers: [{ kind: 'case', rect: [6.4, 52.3, 9.8, 10.6] }, { kind: 'scope', rect: [70.4, 42.6, 6.5, 8.2] }] },
       },
     },
 
@@ -346,11 +388,15 @@
         ] },
       { id: 2, title: 'Investigate the Water', next: 'Build the Solution',
         objectives: [
-          { id: 'openLab', text: () => 'Open the field lab at the station', check: (s) => !!s.flags.labOpened },
-          { id: 'samples', text: (s) => `Collect water samples from 2 sources (${Math.min(2, s.samples.length)}/2)`, check: (s) => s.samples.length >= 2 },
-          { id: 'tests', text: (s) => `Test both samples in the field lab (${Math.min(2, Object.keys(s.results).length)}/2)`, check: (s) => Object.keys(s.results).length >= 2 },
+          { id: 'sample', text: (s, h) => `Collect a water sample at the ${h('source')}`, check: (s) => s.samples.indexOf('source') >= 0 },
+          { id: 'bring', text: () => 'Bring the sample to the field-testing station', check: (s) => !!s.flags.labUnlocked },
+          { id: 'clear', text: () => 'Lab: inspect the clear sample', check: (s) => !!s.flags.clearSampleInspected },
+          { id: 'dirty', text: () => 'Lab: inspect the cloudy sample', check: (s) => !!s.flags.dirtySampleInspected },
+          { id: 'microscope', text: () => 'Lab: look through the microscope', check: (s) => !!s.flags.microscopeUsed },
+          { id: 'filter', text: () => 'Lab: try the filter on the cloudy water', check: (s) => !!s.flags.filterTestCompleted },
           { id: 'surveys', text: (s) => `Survey the land with ${s.people.engineer.name} (${Math.min(2, s.surveys.length)}/2)`, check: (s) => s.surveys.length >= 2 },
-          { id: 'options', text: () => 'Review the water options with the experts (after the tests and surveys)', check: (s) => !!s.flags.optionsReviewed },
+          { id: 'notes', text: () => 'Lab: review your field notes', check: (s) => !!s.flags.notesReviewed },
+          { id: 'options', text: (s) => `See which water systems fit ${s.name}`, check: (s) => !!s.flags.optionsReviewed },
         ] },
       { id: 3, title: 'Build the Solution', next: 'Manage the Water', comingSoon: true, objectives: [] },
       { id: 4, title: 'Manage the Water', next: 'Keep It Flowing', comingSoon: true, objectives: [] },
@@ -365,11 +411,15 @@
       walk: 'At the {sourcePlace}, choose “Watch the morning walk”.',
       gather: 'We’ll need wood and stone for a small field-testing station. Tap the wood and stone markers.',
       lab: 'The committee has chosen a site for the station. Tap the staked site to build it.',
-      openLab: 'The station is ready. Tap it and open the field lab.',
-      samples: 'Collect water samples from the {sourcePlace} and the {waterPlace}. Both are marked on the map.',
-      tests: 'Back at the field lab, test your samples. Make a guess first: can you tell by looking?',
+      sample: 'First, a water sample. Go to the {sourcePlace} and collect one in a clean jar.',
+      bring: 'Got it. Carry the sample to the field-testing station and open the lab.',
+      clear: 'In the lab, start with the clear jar. Would you drink it?',
+      dirty: 'Now the cloudy jar. Compare it with the clear one.',
+      microscope: 'Let’s see what the eye can’t. Try the microscope.',
+      filter: 'Can a simple filter fix the cloudy water? Try the filter stand.',
       surveys: '{engineer} is ready to survey. Look for the survey markers on the map.',
-      options: 'Tests and surveys are done. Open the field lab and review the water options with the experts.',
+      notes: 'Everything is in. Open your field notebook in the lab.',
+      options: 'Your notes are ready. Ask the experts which water systems fit {village}.',
       done: 'Nicely done.',
     },
   };

@@ -105,6 +105,19 @@ Acceptance tests:
 10. `municipal.html` still loads with no console errors. *(smoke)*
 
 ### Phase 2: Laboratory and investigation (Level 2)
+**Update (Phase 2 prompt): illustrated lab scene.** Level 2 now runs inside the painted lab bench for each scenario (`assets/images/lab/<scenario>/lab-scene.png`):
+1. Collect a sample at today's collection point.
+2. Bring it to the station, which unlocks the lab.
+3. Inspect the clear sample: guess first, then the tests, then a short health note.
+4. Inspect the cloudy sample: many more germ colonies.
+5. Look through the microscope: magnified views cut from the painted insets.
+6. Try the filter: clearer, but still not safe.
+7. Survey the land: the two map surveys, kept because the recommendation depends on them.
+8. Review the field notes.
+9. See the water options: the recommendation unlocks Level 3.
+
+State flags are `labUnlocked`, `clearSampleInspected`, `dirtySampleInspected`, `microscopeUsed`, `filterTestCompleted`, `notesReviewed`, `optionsReviewed` and `level2Completed`. Routes are now named `waterCollection`, `waterCollectionAfter` and `labApproach` (plus `ambient`). Tests: 28 unit tests and 267 browser checks.
+
 **Status: implemented, awaiting review.** Covered by `tests/village.test.mjs` (25 unit tests, including the suitability check over 1,000 seeds per scenario) and `tests/smoke.mjs` (191 browser checks).
 
 Built as planned, with these choices:

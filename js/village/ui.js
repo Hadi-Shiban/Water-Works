@@ -127,10 +127,19 @@
   }
   function sampleBlock(s, id) {
     if (s.level < 2 || !S().sceneOf(s).samples[id]) return '';
-    const has = s.samples.indexOf(id) >= 0; const tested = !!s.results[id];
-    if (tested) return `<p class="note">${icon('check')}<span>Tested at the field lab. ${esc(S().sceneOf(s).samples[id].clue)}</span></p>`;
-    if (has) return `<p class="note">${icon('flask')}<span>Sample collected. Test it at the field lab.</span></p><button type="button" class="btn primary block" data-act="open-lab">${icon('flask')} Open the field lab</button>`;
+    if (id !== 'source') {
+      return s.results[id] ? `<p class="note">${icon('check')}<span>Tested at the field lab. ${esc(S().sceneOf(s).samples[id].clue)}</span></p>`
+        : `<p class="note">${icon('flask')}<span>${esc(s.people.caretaker.name)} is bringing a jar of this water to the field lab too.</span></p>`;
+    }
+    if (s.results[id]) return `<p class="note">${icon('check')}<span>Tested at the field lab. ${esc(S().sceneOf(s).samples[id].clue)}</span></p>`;
+    if (s.samples.indexOf(id) >= 0) return `<p class="note">${icon('flask')}<span>Sample collected.</span></p>` + labButton(s);
     return `<button type="button" class="btn primary block" data-act="collect-sample" data-id="${id}">${icon('can')} Collect a water sample</button>`;
+  }
+  function labButton(s) {
+    if (s.flags.labUnlocked) return `<button type="button" class="btn primary block" data-act="open-lab">${icon('flask')} Open the field lab</button>`;
+    if (s.samples.indexOf('source') >= 0) return `<button type="button" class="btn primary block" data-act="open-lab">${icon('flask')} Bring your sample to the lab</button>`;
+    const src = (S().hotspot(s, 'source') || {}).label || 'collection point';
+    return `<p class="note">${icon('can')}<span>The lab needs a water sample. Collect one at the ${esc(src.toLowerCase())}.</span></p>`;
   }
 
   U.sheet = function (s, id, ui) {
@@ -163,7 +172,7 @@
       const b = D().builds[id]; const st = s.builds[id];
       if (st === 'built') {
         extra = `<div class="sec built-card">${icon('check', 'ic-lg')}<div><b>${esc(b.name)} built</b><p>${esc(b.text)}</p></div></div>`
-          + (s.level >= 2 ? `<button type="button" class="btn primary block" data-act="open-lab">${icon('flask')} Open the field lab</button>` : '');
+          + (s.level >= 2 ? labButton(s) : '');
       } else if (st === 'building') {
         extra = `<div class="sec"><p class="note">${icon('hammer')}<span>${esc(s.people[b.builder].name)} and two neighbours are building the ${esc(b.name.toLowerCase())}…</span></p></div>`;
       } else {
@@ -206,7 +215,23 @@
       <div class="dlg-foot">${s.flags.committeeMet ? '<button type="button" class="btn" data-act="close-dialog">Close</button>' : `<button type="button" class="btn primary" data-act="committee-agree">${icon('check')} Agree to work together</button>`}</div>`;
   };
 
-  /* ---- Level 2: the field lab ------------------------------------------------------------ */
+  /* ---- Level 2: the illustrated field lab --------------------------------------------------
+     One painted bench per scenario, with button hotspots over it, a callout panel for
+     whatever is selected, and the Level 2 task list. Pure template: app.js decides
+     which item is open (ui.labItem) and whether a test is animating (ui.labBusy).      */
+  const LAB_STEPS = [
+    { id: 'clear', flag: 'clearSampleInspected', text: 'Inspect the clear sample' },
+    { id: 'dirty', flag: 'dirtySampleInspected', text: 'Inspect the cloudy sample' },
+    { id: 'microscope', flag: 'microscopeUsed', text: 'Look through the microscope' },
+    { id: 'filter', flag: 'filterTestCompleted', text: 'Try the filter' },
+    { id: 'map', flag: null, text: 'Survey the land (on the map)' },
+    { id: 'notebook', flag: 'notesReviewed', text: 'Review your field notes' },
+    { id: 'options', flag: 'optionsReviewed', text: 'See which water systems fit' },
+  ];
+  const stepDone = (s, st) => (st.id === 'map' ? s.surveys.length >= 2 : !!s.flags[st.flag]);
+  function nextStep(s) { return LAB_STEPS.find((st) => !stepDone(s, st)) || null; }
+  U.labNext = (s) => { const n = nextStep(s); return n ? (n.id === 'options' ? 'notebook' : n.id) : null; };
+
   function petri(n, seed) {
     const r = S().rng(seed); const dots = Array.from({ length: n }, () => {
       const a = r() * Math.PI * 2, d = Math.sqrt(r()) * 15;
@@ -217,61 +242,124 @@
   function tube(clarity) {
     return `<svg viewBox="0 0 16 44" class="tube ${clarity}" aria-hidden="true"><path d="M3 2h10v36a5 5 0 0 1-10 0z" class="glass"/><path d="M4 10h8v28a4 4 0 0 1-8 0z" class="water"/></svg>`;
   }
-  function feedback(r) {
-    const looksClear = r.clarity === 'clear'; const bad = r.germ !== 'safe';
+  const chip = (germ) => { const G = D().results.germ[germ]; return `<span class="result ${G.tone}">${icon(germ === 'safe' ? 'check' : 'warn')}${esc(G.label)}</span>`; };
+  /* A circular magnified view, cut from the painted microscope insets. */
+  function magnifier(lab, which, size) {
+    const [cx, cy, d] = lab.insets[which]; const ar = D().lab.w / D().lab.h; const dy = d * ar;
+    const bx = ((cx - d / 2) / (100 - d)) * 100, by = ((cy - dy / 2) / (100 - dy)) * 100;
+    return `<span class="magnifier" style="width:${size}px;height:${size}px;background-image:url('${esc(lab.image)}');background-size:${(10000 / d).toFixed(1)}% auto;background-position:${bx.toFixed(2)}% ${by.toFixed(2)}%" aria-hidden="true"></span>`;
+  }
+  function origin(s, id) {
+    const label = esc(S().hotspot(s, id).label);
+    return id === 'source' ? `From the ${label.toLowerCase()} · your sample` : `From the ${label.toLowerCase()} · brought in by ${esc(s.people.caretaker.name)}`;
+  }
+  function verdict(r) {
+    const bad = r.germ !== 'safe';
     if (r.prediction === 'unsure') return bad ? 'Good instinct. You can’t tell by looking, and the test found germs.' : 'Good instinct. You can’t tell by looking.';
-    if (r.prediction === 'safe' && bad) return looksClear ? 'Surprise! It looked clean, but the test found germs. Clear water isn’t always safe water.' : 'The test found germs. Cloudiness is one clue, but germs are invisible.';
-    if (r.prediction === 'unsafe' && bad) return looksClear ? 'Right, even though it looks perfectly clear. Only the test could prove it.' : 'Right. The cloudiness was a clue, and the test confirms germs.';
+    if (r.prediction === 'safe' && bad) return 'Surprise! It looks clean, but the test found germs. Looks clean doesn’t mean safe to drink.';
+    if (r.prediction === 'unsafe' && bad) return 'Right, even though it looks perfectly clear. Only the test could prove it.';
     return 'The test agrees with what you saw.';
   }
-  function sampleCard(s, id, ui) {
-    const sc = S().sceneOf(s); const h = sc.hotspots.find((x) => x.id === id); const def = sc.samples[id]; const p = sc.places[id];
-    const R = D().results; const r = s.results[id];
-    const head = `<h3>${esc(h.label)}</h3>`;
-    if (s.samples.indexOf(id) < 0) {
-      return `<li class="sample empty">${head}<p class="muted">No sample yet.</p><button type="button" class="btn" data-act="goto" data-id="${id}">${icon('can')} Collect at the ${esc(h.label.toLowerCase())}</button></li>`;
+  const HEALTH = {
+    clear: 'Germs like these can cause diarrhoea. Drinking water like this day after day can leave people weak and dehydrated, and young children are hit hardest.',
+    dirty: 'More germs and more mud. Water like this is a common cause of diarrhoea, and the mud can shelter germs from treatment.',
+  };
+
+  function callout(s, ui, lab) {
+    const item = ui.labItem; const sc = S().sceneOf(s); const map = S().labDef(s); const busy = ui.labBusy;
+    const locked = (msg) => `<p class="note warn">${icon('flag')}<span>${esc(msg)}</span></p>`;
+    const hs = D().lab.hotspots.find((h) => h.id === item);
+    const head = (k, title) => `<header class="co-head"><p class="kicker">${esc(k)}</p><h3 id="coTitle" tabindex="-1">${esc(title)}</h3></header>`;
+    if (!item) {
+      const n = nextStep(s);
+      return head('Field lab', 'What’s next?') + (n ? `<p>${n.id === 'map' ? `Next, survey the land with ${esc(s.people.engineer.name)}. The survey markers are on the village map.` : `Next: <b>${esc(n.text.toLowerCase())}</b>. It’s glowing on the bench.`}</p>`
+        : '<p>All done here. Nice work.</p>') + `<p class="muted">Tap anything on the bench to look closer.</p>`;
     }
-    if (ui.testing === id) {
-      return `<li class="sample testing">${head}<div class="bench">${tube(def.clarity)}${petri(R.germ[def.germ].colonies, s.seed + id.length)}</div><p class="muted" role="status">Running the clarity and germ tests… <small>(the germ test normally incubates overnight)</small></p></li>`;
+    if (item === 'clear' || item === 'dirty') {
+      const id = map[item]; const def = sc.samples[id]; const r = s.results[id]; const p = sc.places[id];
+      const colonies = def.colonies || D().results.germ[def.germ].colonies;
+      const title = item === 'clear' ? 'Clear sample' : 'Cloudy sample';
+      if (item === 'dirty' && !s.flags.clearSampleInspected) return head('Sample jar', title) + locked('Start with the clear sample.');
+      if (busy === item) {
+        return head(origin(s, id), title) + `<div class="bench">${tube(def.clarity)}${petri(colonies, s.seed + id.length)}</div>
+          <p class="muted" role="status">Running the clarity and germ tests… <small>(a real germ test incubates overnight)</small></p>`;
+      }
+      if (!r) {
+        if (item === 'clear') {
+          return head(origin(s, id), title) + `<div class="bench look">${glass(p.looks)}<span><b>Looks:</b> ${esc(p.looks)}</span></div>
+            <p class="ask">Would you drink it? Guess, then run the tests.</p>
+            <div class="guess" role="group" aria-label="Your guess"><button type="button" class="btn" data-act="lab-guess" data-pred="safe">Looks safe</button>
+            <button type="button" class="btn" data-act="lab-guess" data-pred="unsafe">Looks unsafe</button><button type="button" class="btn" data-act="lab-guess" data-pred="unsure">Can’t tell</button></div>`;
+        }
+        return head(origin(s, id), title) + `<div class="bench look">${glass(p.looks)}<span><b>Looks:</b> ${esc(p.looks)}</span></div>
+          <button type="button" class="btn primary" data-act="lab-test" data-id="dirty">${icon('flask')} Run the tests</button>`;
+      }
+      return head(origin(s, id), title) + `<div class="bench">${tube(r.clarity)}${petri(colonies, s.seed + id.length)}<span class="colony-n">${colonies} germ colonies grew</span></div>
+        <dl class="results"><div><dt>${icon('eye')} Your eyes</dt><dd>${esc(p.looks)}</dd></div><div><dt>Clarity test</dt><dd>${esc(D().results.clarity[r.clarity])}</dd></div>
+          <div><dt>${icon('flask')} Germ test</dt><dd>${chip(r.germ)}</dd></div>${r.salty ? `<div><dt>Salt strip</dt><dd><span class="result warn">${icon('warn')}Salty</span></dd></div>` : ''}</dl>
+        ${item === 'clear' && r.prediction ? `<p class="verdict">${esc(verdict(r))}</p>` : `<p class="verdict">${item === 'dirty' ? 'You can see this one is dirty. The test shows it’s worse than it looks.' : ''}</p>`}
+        <p class="health">${icon('people')}<span>${esc(HEALTH[item])}</span></p>
+        <details><summary>Learn more</summary><p>The germ test grows bacteria that live in human and animal waste. If they are there, disease-causing germs may be too. ${esc(def.clue)}</p><p class="muted">Results are simplified game categories, not real measurements.</p></details>`;
     }
-    if (!r) {
-      return `<li class="sample">${head}<div class="bench look">${glass(p.looks)}<span><b>Looks:</b> ${esc(p.looks)}</span></div>
-        <p class="ask">Is it safe to drink? Make a guess, then run the tests.</p>
-        <div class="guess" role="group" aria-label="Your guess for the ${esc(h.label)}">
-          <button type="button" class="btn" data-act="predict" data-id="${id}" data-pred="safe">Looks safe</button>
-          <button type="button" class="btn" data-act="predict" data-id="${id}" data-pred="unsafe">Looks unsafe</button>
-          <button type="button" class="btn" data-act="predict" data-id="${id}" data-pred="unsure">Can’t tell</button></div></li>`;
+    if (item === 'microscope') {
+      if (!s.flags.dirtySampleInspected) return head('Microscope', 'Microscope') + locked(s.flags.clearSampleInspected ? 'Inspect the cloudy sample first.' : 'Inspect both sample jars first.');
+      return head('Microscope', 'What the eye can’t see') + `<div class="scopes"><figure>${magnifier(lab, 'clear', 120)}<figcaption>Clear jar</figcaption></figure><figure>${magnifier(lab, 'dirty', 120)}<figcaption>Cloudy jar</figcaption></figure></div>
+        <ul class="keyfacts"><li><b>Bacteria</b> and tiny parasites, in <em>both</em> jars</li><li>The cloudy jar adds <b>soil and debris</b>, which can hide germs</li></ul>
+        ${s.flags.microscopeUsed ? '' : `<button type="button" class="btn primary" data-act="lab-step" data-id="microscope">${icon('check')} Got it</button>`}
+        <details><summary>Learn more</summary><p>Most disease-causing germs are far too small to see. Field teams usually rely on growth tests and test kits rather than microscopes; this view is simplified to show what those tests detect.</p></details>`;
     }
-    const G = R.germ[r.germ];
-    return `<li class="sample done">${head}<div class="bench">${tube(r.clarity)}${petri(G.colonies, s.seed + id.length)}</div>
-      <dl class="results">
-        <div><dt>${icon('eye')} Your eyes</dt><dd>${esc(p.looks)}</dd></div>
-        <div><dt>Clarity test</dt><dd>${esc(R.clarity[r.clarity])}</dd></div>
-        <div><dt>${icon('flask')} Germ test</dt><dd><span class="result ${G.tone}">${icon(r.germ === 'safe' ? 'check' : 'warn')}${esc(G.label)}</span></dd></div>
-        ${r.salty ? `<div><dt>Salt strip</dt><dd><span class="result warn">${icon('warn')}Salty</span></dd></div>` : ''}
-      </dl>
-      <p class="verdict">${esc(feedback(r))}</p>
-      <details><summary>Learn more</summary><p>The germ test looks for bacteria that live in human and animal waste. If they are there, disease-causing germs may be too. Cloudiness (turbidity) can hide germs and protect them from treatment, but clear water can carry them as well. ${esc(def.clue)}</p><p class="muted">Results here are simplified game categories, not real measurements.</p></details></li>`;
+    if (item === 'filter') {
+      if (!s.flags.microscopeUsed) return head('Filter stand', 'Filter stand') + locked(s.flags.dirtySampleInspected ? 'Look through the microscope first.' : 'Inspect both sample jars first.');
+      const f = S().filterResult(s); const done = s.flags.filterTestCompleted;
+      const flow = `<div class="filterflow ${busy === 'filter' ? 'running' : ''} ${done ? 'done' : ''}">${glass('cloudy')}<span class="funnel" aria-hidden="true">▼</span>${glass(done ? 'clear' : 'cloudy')}</div>`;
+      if (!done) return head('Filter stand', 'Can a filter fix it?') + flow + `<p>Pour the cloudy water through the paper filter.</p>
+        <button type="button" class="btn primary" data-act="lab-step" data-id="filter" ${busy ? 'aria-disabled="true"' : ''}>${icon('flask')} ${busy === 'filter' ? 'Filtering…' : 'Run the filter'}</button>`;
+      return head('Filter stand', 'Clearer, not safe') + flow + `<dl class="results"><div><dt>Clarity</dt><dd>${esc(D().results.clarity[f.before.clarity])} → <b>${esc(D().results.clarity[f.after.clarity])}</b></dd></div>
+        <div><dt>Germ test</dt><dd>${chip(f.before.germ)} → ${chip(f.after.germ)}</dd></div></dl>
+        <p class="verdict">The filter caught the mud, but germs slipped through. Clearer isn’t the same as safe.</p>
+        <details><summary>Learn more</summary><p>Cloth and paper filters catch dirt. Safe water also needs a protected source, or treatment such as disinfection, or a well-made household filter (like a BioSand filter) that is used and looked after every day.</p></details>`;
+    }
+    if (item === 'notebook') {
+      const pre = !s.flags.filterTestCompleted ? 'Finish the bench tests first.' : s.surveys.length < 2 ? `Your notes still need the survey results. ${2 - s.surveys.length} survey${s.surveys.length === 1 ? '' : 's'} left with ${s.people.engineer.name}.` : null;
+      if (pre) return head('Field notebook', 'Field notes') + locked(pre) + (s.surveys.length < 2 && s.flags.filterTestCompleted ? `<button type="button" class="btn" data-act="lab-goto-survey">${icon('flag')} Go to the next survey</button>` : '');
+      const rows = ['clear', 'dirty'].map((w) => { const id = map[w]; const r = s.results[id]; return `<li><b>${esc(S().hotspot(s, id).label)}</b><span>Looks ${esc(sc.places[id].looks.toLowerCase())} · germ test ${chip(r.germ)}</span></li>`; }).join('');
+      const known = S().knownFacts(s); const facts = Object.keys(D().facts).filter((k) => known[k]).map((k) => `<li><span>${esc(D().facts[k].label)}</span><b>${esc(D().facts[k].show(s.site[k]))}</b></li>`).join('');
+      return head('Field notebook', 'What we learned') + `<ul class="notes">${rows}<li><b>Microscope</b><span>Germs in both jars, even the clear one</span></li><li><b>Filter</b><span>Clearer, but still not safe</span></li></ul>
+        <h4 class="sec-t">The land</h4><ul class="factlist">${facts}</ul>
+        <button type="button" class="btn primary" data-act="lab-notes">${icon('people')} ${s.flags.notesReviewed ? 'See the water options' : 'Ask the experts what fits'}</button>`;
+    }
+    if (item === 'map') {
+      const left = Object.keys(sc.surveys).filter((id) => s.surveys.indexOf(id) < 0);
+      const known = S().knownFacts(s); const facts = Object.keys(D().facts).filter((k) => known[k]).map((k) => `<li><span>${esc(D().facts[k].label)}</span><b>${esc(D().facts[k].show(s.site[k]))}</b></li>`).join('');
+      return head('Village and source map', 'Site card') + `<p>Both sample sources are circled. ${left.length ? `${left.length} survey${left.length > 1 ? 's' : ''} left with ${esc(s.people.engineer.name)}.` : 'Surveys complete.'}</p>
+        ${facts ? `<ul class="factlist">${facts}</ul>` : '<p class="muted">No survey results yet.</p>'}
+        ${left.length ? `<button type="button" class="btn" data-act="lab-goto-survey">${icon('flag')} Go to the next survey</button>` : ''}`;
+    }
+    const extra = {
+      reagents: ['Test tubes and reagents', 'Reagents feed any bacteria in a sample so they grow into colonies you can count. In the real world that takes about a day.'],
+      petri: ['Petri dishes', s.flags.dirtySampleInspected ? 'Each dot is a colony that grew from one germ. Count them to compare samples.' : 'Results show up here as dots. Each one is a colony that grew from one germ.'],
+      strip: ['Indicator strip', 'Strips check things like chlorine or pH. Handy, but no strip can spot germs.'],
+      cylinder: ['Measuring cylinder', 'Every test uses the same amount of water, so results can be compared fairly.'],
+    }[item];
+    return extra ? head(hs ? hs.label : '', extra[0]) + `<p>${esc(extra[1])}</p>` : '';
   }
 
-  U.lab = function (s, ui) {
-    const sc = S().sceneOf(s); const ids = Object.keys(sc.samples);
-    const known = S().knownFacts(s);
-    // Only what has been discovered so far: the site card fills in as you survey and test.
-    const keys = Object.keys(D().facts); const found = keys.filter((k) => known[k]);
-    const site = found.length
-      ? found.map((k) => `<li class="known"><span>${esc(D().facts[k].label)}</span><b>${esc(D().facts[k].show(s.site[k]))}</b></li>`).join('')
-      : `<li class="empty">Nothing surveyed yet. ${esc(s.people.engineer.name)} is waiting at the survey markers on the map.</li>`;
-    const ready = S().readyForOptions(s);
-    const left = []; const tests = Object.keys(s.results).length; if (tests < 2) left.push(`${2 - tests} test${2 - tests > 1 ? 's' : ''}`);
-    if (s.surveys.length < 2) left.push(`${2 - s.surveys.length} survey${2 - s.surveys.length > 1 ? 's' : ''}`);
-    return `<div class="dlg-head"><div><p class="kicker">Field lab · ${esc(s.name)}</p><h2 id="dlgTitle">Your eyes vs the lab</h2></div>${closeBtn()}</div>
-      <div class="dlg-body">
-        <ul class="samples">${ids.map((id) => sampleCard(s, id, ui)).join('')}</ul>
-        <section class="sitecard"><h3 class="sec-t">Site card · ${s.surveys.length}/2 surveys · ${found.length} of ${keys.length} facts</h3><ul>${site}</ul></section>
-      </div>
-      <div class="dlg-foot"><p class="muted foot-note">${ready ? (s.flags.optionsReviewed ? 'The experts have shared their recommendation.' : 'Everything is in. Time to hear from the experts.') : `Still to do: ${left.join(' and ')}.`}</p>
-        <button type="button" class="btn ${ready ? 'primary' : ''}" data-act="open-options">${icon('people')} Water options</button></div>`;
+  U.labScene = function (s, ui) {
+    const lab = D().lab.scenes[D().scenarios[s.scenarioId].scene];
+    const next = U.labNext(s); const rect = (r) => `left:${r[0]}%;top:${r[1]}%;width:${r[2]}%;height:${r[3]}%`;
+    const hot = D().lab.hotspots.map((h) => {
+      const done = h.step && LAB_STEPS.some((st) => st.id === h.id && stepDone(s, st));
+      return `<button type="button" class="lab-hs ${h.id === next ? 'next' : ''} ${ui.labItem === h.id ? 'active' : ''} ${done ? 'done' : ''}" data-act="lab-item" data-id="${h.id}" style="${rect(h.rect)}"
+        aria-pressed="${ui.labItem === h.id}" aria-label="${esc(h.label)}${done ? ' (done)' : h.id === next ? ' (next step)' : ''}"><span class="lab-tag">${esc(h.label)}</span></button>`;
+    }).join('');
+    const covers = D().lab.coverBranding ? lab.covers.map((c) => `<span class="lab-cover ${c.kind}" style="${rect(c.rect)}" aria-hidden="true">${c.kind === 'case' ? '<b>FIELD KIT</b>' : ''}</span>`).join('') : '';
+    const tasks = LAB_STEPS.map((st) => `<li class="${stepDone(s, st) ? 'done' : st.id === (nextStep(s) || {}).id ? 'now' : ''}">${icon(stepDone(s, st) ? 'check' : 'dot')}<span>${esc(st.id === 'map' ? `Survey the land with ${s.people.engineer.name} (${Math.min(2, s.surveys.length)}/2)` : st.text)}</span></li>`).join('');
+    return `<div class="dlg-head"><div><p class="kicker">Field lab · ${esc(s.name)}</p><h2 id="dlgTitle">Investigate the water</h2></div>${closeBtn()}</div>
+      <div class="lab-wrap">
+        <div class="lab-stage"><div class="lab-art"><img src="${esc(lab.image)}" alt="" width="${D().lab.w}" height="${D().lab.h}" draggable="false">${covers}${hot}</div></div>
+        <aside class="lab-side"><section class="callout" aria-live="polite">${callout(s, ui, lab)}</section>
+          <section class="lab-tasks"><h3 class="sec-t">Level 2 tasks</h3><ol>${tasks}</ol></section></aside>
+      </div>`;
   };
 
   const STATUS = {

@@ -109,6 +109,12 @@
       <use href="#art-can" transform="translate(9 -2) scale(.8)"/>
     </g>
 
+    <g id="art-walker-jar">
+      <use href="#art-person"/>
+      <path d="M4.4 -14 L6.6 -10 M-4.4 -14 L-6 -8.5" stroke="var(--skin)" stroke-width="1.7" stroke-linecap="round"/>
+      <rect x="5" y="-12.5" width="5.2" height="6.8" rx="1.2" fill="#dcefff" stroke="#3f6d8e" stroke-width=".8"/>
+      <rect x="5.2" y="-13.6" width="4.8" height="1.6" rx=".5" fill="#f2c118"/>
+    </g>
     <g id="art-walker-free">
       <use href="#art-person"/>
       <path d="M4.4 -14 L6 -8.5 M-4.4 -14 L-6 -8.5" stroke="var(--skin)" stroke-width="1.7" stroke-linecap="round"/>
@@ -186,13 +192,7 @@
     }
     return d;
   }
-  function allRoutes() {
-    const r = scene.routes; const list = [];
-    if (r.collect) list.push(['collect', r.collect]);
-    if (r.collectAfter) list.push(['collectAfter', r.collectAfter]);
-    (r.ambient || []).forEach((a) => list.push([a.id, a]));
-    return list;
-  }
+  const allRoutes = () => WV.sim.allRoutes(scene);
   function routesMarkup() {
     const k = scene.structureScale;
     return allRoutes().map(([id, rt]) => {
@@ -278,7 +278,7 @@
         const el = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         el.setAttribute('class', 'walker' + (p.route.cans ? ' carrying' : ''));
         el.dataset.route = p.id;
-        el.innerHTML = `<use href="#${p.route.cans ? 'art-walker' : 'art-walker-free'}" style="${look(n * 2 + 1)}"/>`;
+        el.innerHTML = `<use href="#${p.route.cans ? 'art-walker' : p.route.jar ? 'art-walker-jar' : 'art-walker-free'}" style="${look(n * 2 + 1)}"/>`;
         layer.appendChild(el);
         walkers.push({ el, path, len, speed: p.route.speed, offset: i * spacing * p.route.speed + (n * 37) % 23, index: i, count, flip: 1, phase: n * 1.7 });
         n++;

@@ -17,16 +17,10 @@
   const html = document.documentElement;
   html.classList.add('dev-on', 'dev-bounds', 'dev-walkers');
 
-  let api = null; let layer = null; let selected = { route: 'collect', index: -1 }; let drag = null;
+  let api = null; let layer = null; let selected = { route: 'waterCollection', index: -1 }; let drag = null;
   const r1 = (n) => Math.round(n * 10) / 10;
 
-  function routeList() {
-    const r = api.scene.routes; const out = [];
-    if (r.collect) out.push(['collect', r.collect]);
-    if (r.collectAfter) out.push(['collectAfter', r.collectAfter]);
-    (r.ambient || []).forEach((a) => out.push([a.id, a]));
-    return out;
-  }
+  const routeList = () => WV.sim.allRoutes(api.scene);
   const routeById = (id) => (routeList().find(([rid]) => rid === id) || [])[1];
 
   function el(name, attrs, parent) {
@@ -124,7 +118,7 @@
     else if (k === 'after') { after = t.checked; api.setPreviewAfter(after); }
     else if (k === 'copy') {
       const r = api.scene.routes;
-      const json = JSON.stringify({ collect: r.collect.points, collectAfter: r.collectAfter && r.collectAfter.points, ambient: (r.ambient || []).reduce((o, a) => ((o[a.id] = a.points), o), {}) });
+      const json = JSON.stringify(routeList().reduce((o, [id, rt]) => ((o[id] = rt.points), o), {}));
       const out = box.querySelector('[data-dev="out"]'); out.value = json; out.select();
       if (navigator.clipboard) navigator.clipboard.writeText(json).catch(() => {});
       return;
@@ -133,7 +127,7 @@
   }
 
   WV.scene.onMount((a) => {
-    api = a; selected = { route: 'collect', index: -1 };
+    api = a; selected = { route: 'waterCollection', index: -1 };
     api.svg.addEventListener('pointerdown', onDown);
     api.svg.addEventListener('pointermove', onMove);
     api.svg.addEventListener('pointerup', onUp);
