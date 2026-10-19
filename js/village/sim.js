@@ -112,6 +112,7 @@
     if (s.tech === undefined) s.tech = null;
     s.activation = s.activation || [];
     WV.water.ensure(s);
+    if (WV.maint) WV.maint.ensure(s);
     s.people = s.people || {};
     const used = Object.values(s.people).map((p) => p.name);
     const spare = shuffle(data.namePool, rng(s.seed)).filter((n) => used.indexOf(n) < 0);
@@ -154,7 +155,8 @@
   const sceneOf = (s) => D().scenes[D().scenarios[s.scenarioId].scene];
   const hotspot = (s, id) => sceneOf(s).hotspots.find((h) => h.id === id);
 
-  const visible = (s, h) => !!h && (!h.minLevel || s.level >= h.minLevel) && (!h.maxLevel || s.level <= h.maxLevel) && (!h.needsTech || !!s.tech);
+  const visible = (s, h) => !!h && (!h.minLevel || s.level >= h.minLevel) && (!h.maxLevel || s.level <= h.maxLevel) && (!h.needsTech || !!s.tech)
+    && (h.kind !== 'issue' || (!!s.maint && s.maint.inspected && !s.maint.repaired));
 
   /* ---- Actions ------------------------------------------------------------------------ */
   function inspect(s, id) {
@@ -467,7 +469,9 @@
     t.completedLevels.push(t.level);
     if (t.level === 2) t.flags.level2Completed = true;
     if (t.level === 3) t.flags.level3Completed = true;
+    if (t.level === 5) { t.flags.campaignComplete = true; return { ok: true, state: t }; }
     t.level = Math.min(D().levels.length, t.level + 1);
+    if (t.level === 5 && WV.maint) WV.maint.start(t);
     // Building season: the gathering spots grow back when construction begins.
     if (t.level === 3) sceneOf(t).hotspots.filter((h) => h.kind === 'node').forEach((h) => (t.nodes[h.id] = { charges: h.charges, regrowAt: null }));
     return { ok: true, state: t };

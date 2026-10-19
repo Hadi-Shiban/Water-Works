@@ -8,6 +8,7 @@ const require = createRequire(import.meta.url);
 require('../js/village/data.js');
 require('../js/village/sim.js');
 require('../js/village/water.js');
+require('../js/village/maint.js');
 const { data: D, sim } = globalThis.WV;
 const SCENARIOS = Object.keys(D.scenarios);
 
@@ -833,4 +834,149 @@ test('A15 a supply drop never leaves an unreported invalid plan, and never moves
   assert.ok(W.step(s).ok);
   assert.equal(W.setAllocation(s, plan).ok, false, 'an over-supply plan cannot be confirmed as valid');
   s.water.supplyFactor = 1; assert.equal(W.needsReview(s), false, 'review clears when supply returns');
+});
+
+/* ---- Phase 5: keep the water flowing ------------------------------------------------------------ */
+const MT = WV.maint;
+function finishLevel4(id, salt = 9) {
+  let s = finishLevel3(id, salt);
+  for (let i = 0; i < 4; i++) s = W.step(s).state;
+  s = sim.setFlag(s, 'populationPanelSeen');
+  s = play(s, (x) => W.setAllocation(x, W.defaultAllocation(x)));
+  s = play(s, (x) => W.decide(x, 'reliability'));
+  s = play(s, (x) => W.runWeek(x, 0)); s = play(s, (x) => W.runWeek(x, 0));
+  return play(s, sim.completeLevel);
+}
+function repairAll(s) {
+  let now = 6e12;
+  for (const st of MT.def(s).steps) {
+    let r = MT.repairStep(s, st.id);
+    for (let i = 0; i < 60 && !r.ok && /Needs/.test(r.reason); i++) { // gather what is missing, with regrowth
+      s = sim.regrow(s, now).state; now += 1500;
+      const n = sim.sceneOf(s).hotspots.find((h) => h.kind === 'node' && s.nodes[h.id].charges > 0 && s.resources[h.res] < MT.def(s).cost[h.res]);
+      if (n) s = breakNode(s, n.id, now).s;
+      r = MT.repairStep(s, st.id);
+    }
+    assert.ok(r.ok, r.reason); s = r.state;
+  }
+  return s;
+}
+const TECH_FX = { gravityFed: 'leak', drilledWell: 'pump', rainwater: 'leaves' };
+
+test('P5 the Level 5 problem matches the technology and reduces service without breaking accounting', () => {
+  for (const id of SCENARIOS) {
+    const s = finishLevel4(id);
+    assert.equal(s.level, 5); assert.ok(s.maint, 'problem started on entering Level 5');
+    assert.equal(s.maint.issue, D.scenarios[id].primaryTech); assert.equal(MT.def(s).fx, TECH_FX[s.tech]);
+    assert.ok(s.maint.condition < 0.7 && s.water.supplyFactor < 1);
+    assert.ok(W.residents(s).reliable < s.maint.reliableBefore, 'some households lost reliable service');
+    accounted(s);
+    assert.equal(sim.visible(s, sim.hotspot(s, 'issue')), false, 'problem spot appears after the inspection');
+    assert.equal(sim.nextObjective(s).id, 'inspect');
+  }
+});
+
+test('P5 a broken water point pauses adoption until it is repaired', () => {
+  let s = finishLevel4('highland'); const r = W.residents(s);
+  for (let i = 0; i < 10; i++) s = W.step(s).state;
+  assert.deepEqual(W.residents(s), r, 'no recovery while broken, however long you wait');
+});
+
+test('P5 diagnosis: wrong answers explain and cost nothing; the right one unlocks the repair', () => {
+  let s = play(finishLevel4('wetland'), MT.inspect);
+  assert.equal(sim.visible(s, sim.hotspot(s, 'issue')), true);
+  assert.equal(MT.repairStep(s, 'clear').ok, false, 'no repair before diagnosis');
+  const wrong = MT.def(s).options.find((o) => !o.correct);
+  const r = MT.diagnose(s, wrong.id); assert.equal(r.correct, false); assert.ok(r.why.length > 20);
+  s = r.state; assert.equal(s.maint.diagnosed, false); assert.deepEqual(s.maint.wrong, [wrong.id]);
+  s = play(s, (x) => MT.diagnose(x, MT.def(x).options.find((o) => o.correct).id));
+  assert.equal(s.maint.diagnosed, true); assert.equal(sim.nextObjective(s).id, 'repair');
+});
+
+test('P5 repairs restore condition and supply; costs are spent once; no softlock from zero', () => {
+  for (const id of SCENARIOS) {
+    let s = play(finishLevel4(id), MT.inspect);
+    s = play(s, (x) => MT.diagnose(x, MT.def(x).options.find((o) => o.correct).id));
+    s.resources = { wood: 0, stone: 0 }; for (const k in s.nodes) s.nodes[k] = { charges: 0, regrowAt: 0 }; // worst case
+    s = sim.deserialize(sim.serialize(s));
+    const steps = MT.def(s).steps; assert.equal(steps.length, 3);
+    assert.equal(MT.repairStep(s, steps[1].id).ok, false, 'steps in order');
+    const before = s; s = repairAll(s);
+    assert.equal(s.maint.repaired, true); assert.ok(s.maint.condition >= 0.9); assert.equal(s.water.supplyFactor, 1);
+    const cost = MT.def(s).cost; assert.deepEqual(s.maint.spent, cost);
+    assert.ok(s.resources.wood >= 0 && s.resources.stone >= 0);
+    assert.equal(MT.repairStep(s, steps[0].id).done, true, 'repeat repairs do nothing');
+    assert.equal(W.needsReview(s), false, 'the sharing plan is valid again');
+    assert.equal(sim.visible(s, sim.hotspot(s, 'issue')), false, 'warning gone');
+    void before;
+  }
+});
+
+test('P5 access recovers gradually after the repair, never instantly', () => {
+  for (const id of SCENARIOS) {
+    let s = play(finishLevel4(id), MT.inspect);
+    s = play(s, (x) => MT.diagnose(x, MT.def(x).options.find((o) => o.correct).id));
+    s = repairAll(s);
+    const target = s.maint.reliableBefore; const r0 = W.residents(s).reliable;
+    assert.ok(r0 < target, `${id}: repair alone does not restore everyone`);
+    assert.equal(s.maint.reliableAtRepair, r0);
+    assert.equal(sim.nextObjective(s).id, 'restore');
+    let steps = 0; while (W.residents(s).reliable < target && steps < 10) { s = W.step(s).state; steps++; accounted(s); }
+    assert.ok(steps >= 1 && steps <= 4, `${id}: recovered over ${steps} periods`);
+    assert.equal(sim.nextObjective(s).id, 'complete');
+  }
+});
+
+test('P5 sliders stay independent in Level 5, including while supply is reduced', () => {
+  const s = finishLevel4('plateau'); const d0 = { ...s.water.allocation };
+  assert.equal(W.needsReview(s), W.sum(d0) > W.capacityCans(s), 'an over-supply plan is reported, never hidden');
+  for (const k of ['homes', 'school', 'clinic', 'garden']) {
+    const d1 = W.setDraftValue(s, d0, k, 0); assert.deepEqual(other(d1, k), other(d0, k));
+    const up = W.setDraftValue(s, d1, k, 99999);
+    assert.ok(W.sum(up) <= Math.max(W.capacityCans(s), W.sum(d1)), 'raising a slider never pushes the total past the supply');
+    if (W.sum(d1) >= W.capacityCans(s)) assert.equal(up[k], d1[k], 'over supply already: the slider cannot go up');
+  }
+});
+
+test('P5 full campaign: Levels 1–5 in every scenario; the report matches the simulation', () => {
+  for (const id of SCENARIOS) {
+    let s = play(finishLevel4(id), MT.inspect);
+    s = play(s, (x) => MT.diagnose(x, MT.def(x).options.find((o) => o.correct).id));
+    s = repairAll(s);
+    assert.equal(MT.completeProject(s).ok, false, 'needs recovery and a priority first');
+    while (W.residents(s).reliable < s.maint.reliableBefore) s = W.step(s).state;
+    s = play(s, (x) => MT.choosePriority(x, 'handwashing'));
+    s = play(s, MT.completeProject);
+    assert.equal(sim.levelReady(s), true);
+    const rp = s.maint.report; const r = W.residents(s); const m = sim.metrics(s);
+    assert.equal(rp.reliable, r.reliable); assert.equal(rp.population, s.population);
+    assert.equal(rp.gained, r.reliable - W.startReliable(s)); assert.ok(rp.gained > 0);
+    assert.equal(rp.hoursPerDay, Math.round(m.hoursSavedPerDay)); assert.equal(rp.condition, Math.round(s.maint.condition * 100));
+    assert.equal(rp.technology, D.technologies[D.scenarios[id].primaryTech].name);
+    assert.equal(rp.reliable + rp.stillWaiting, s.population);
+    s = play(s, sim.completeLevel);
+    assert.equal(s.flags.campaignComplete, true); assert.equal(s.level, 5); assert.equal(sim.levelReady(s), false);
+    const back = sim.deserialize(sim.serialize(s));
+    assert.deepEqual(back, s, 'a completed village reopens exactly');
+    assert.equal(W.stepIfDue(back, Date.now() + 1e9).changed, true, 'life goes on after the campaign');
+  }
+});
+
+test('P5 saves made mid-maintenance reload into a valid state; Phase 4 saves at Level 5 get their problem', () => {
+  let s = play(finishLevel4('highland'), MT.inspect);
+  s = play(s, (x) => MT.diagnose(x, 'joint'));
+  s = repairAll({ ...s, maint: { ...s.maint } }); // full run for reference
+  let mid = play(finishLevel4('highland'), MT.inspect); mid = play(mid, (x) => MT.diagnose(x, 'joint'));
+  mid.resources = { wood: 5, stone: 5 }; mid = play(mid, (x) => MT.repairStep(x, 'dig'));
+  const back = sim.deserialize(sim.serialize(mid));
+  assert.deepEqual(back.maint.steps, ['dig']); assert.equal(MT.nextStep(back).id, 'fix'); assert.equal(back.resources.stone, 3, 'cost not charged twice');
+  const old = JSON.parse(sim.serialize(finishLevel4('wetland'))); delete old.maint;
+  const loaded = sim.deserialize(JSON.stringify(old));
+  assert.ok(loaded.maint && loaded.maint.issue === 'rainwater'); accounted(loaded);
+});
+
+test('P5 a new village starts fresh', () => {
+  const v = village('Fresh Start', 77);
+  assert.equal(v.level, 1); assert.equal(v.maint, undefined); assert.equal(v.flags.campaignComplete, undefined);
+  assert.equal(v.flags.projectComplete, undefined); assert.equal(v.tech, null); assert.equal(v.water.active, false);
 });

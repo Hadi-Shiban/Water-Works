@@ -52,6 +52,9 @@
     return out;
   }
 
+  /* Reliable residents at the very start (households' own safe methods only). */
+  function startReliable(s) { return residents({ ...s, water: { ...s.water, hh: baseline(s).hh } }).reliable; }
+
   /* ---- Capacity and allocation ------------------------------------------------------------
      Allocations are ABSOLUTE jerry cans a day, one number per sector, never percentages.
      Rules (shared finite pool):
@@ -162,6 +165,8 @@
     const t = clone(s); const w = t.water; const hh = w.hh; const W = D().water;
     const cap = homesCapHouseholds(t);
     const rate = w.decision === 'reliability' ? W.verifyRateReliable : W.verifyRate;
+    // A broken water point (Level 5, before the repair) verifies nobody and takes no new users.
+    if (t.maint && !t.maint.repaired) { w.periods += 1; w.capacityCans = capacityCans(t); return { ok: true, state: t, verified: 0, paused: true }; }
     let verify = hh.trying > 0 ? Math.max(1, Math.round(hh.trying * rate)) : 0;
     verify = Math.min(verify, hh.trying, Math.max(0, cap - hh.project));
     hh.trying -= verify; hh.project += verify;
@@ -203,9 +208,13 @@
     if (!s.water || !s.water.active) return { long: 3, near: 0 };
     const hh = s.water.hh; const n = s.households;
     const longShare = (hh.none + hh.partial) / n; const nearShare = (hh.project + hh.trying) / n;
-    return { long: hh.none + hh.partial > 0 ? Math.max(1, Math.round(3 * longShare)) : 0, near: Math.min(4, Math.max(1, Math.round(1 + 3 * nearShare))) };
+    // Less water (a breakdown) means fewer trips to the point and more long walks again.
+    const f = s.water.supplyFactor == null ? 1 : s.water.supplyFactor;
+    const near = Math.min(4, Math.max(1, Math.round((1 + 3 * nearShare) * f)));
+    const long = hh.none + hh.partial > 0 || f < 1 ? Math.max(1, Math.round(3 * longShare + (f < 1 ? 1 : 0))) : 0;
+    return { long, near };
   }
 
-  WV.water = { CATS, baseline, ensure, residents, capacityCans, defaultAllocation, clinicMin, needs, outcome, setAllocation,
+  WV.water = { CATS, baseline, startReliable, ensure, residents, capacityCans, defaultAllocation, clinicMin, needs, outcome, setAllocation,
     maxAllowed, setDraftValue, budget, validate, effectiveAllocation, needsReview, migrateAllocation, sum, open, step, stepIfDue, runWeek, decide, walkerCounts, hhSize };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -179,6 +179,26 @@ Scenario baselines (fictional) set the starting shares of `existing` and `partia
 - Celebration, project report and learning link.
 - Accept: the challenge always occurs once and can be resolved; a wrong diagnosis never fails the game; report numbers match the state; the disclaimer is shown.
 
+### Phase 5: Keep the water flowing (Level 5) and project completion
+**Status: implemented.** Entering Level 5 starts one problem matched to the technology. Gravity-fed gets a leaking pipe joint at the stream crossing; drilled well gets worn pump seals; rainwater gets a blocked gutter and first-flush pipe.
+
+While the problem lasts:
+- the point gives 50% of its water (`water.supplyFactor`);
+- condition drops to 55%;
+- households the reduced supply can't serve go back to "trying";
+- adoption pauses.
+
+Objectives:
+1. Inspect: condition, flow, reliable access and status.
+2. Diagnose: three options. Wrong answers are explained, with no penalty.
+3. Repair: three steps with the trained caretaker. A small wood or stone cost is spent once, and gathering spots regrow.
+4. Restore: access recovers through the normal verification periods, never instantly.
+5. Project review: Pipeline-inspired monitoring dialogue and one community priority, then the final report.
+
+The "Water Changes Everything" finale reads a saved report. Every number comes from the simulation, and the yearly hours are the daily figure × 365. Players can explore freely afterwards.
+
+Tests: 69 unit tests and 588 browser checks.
+
 ### Phase 6: Polish and deployment
 - Copy and tone pass, responsive checks, performance pass, README rewrite, superseded notes on `docs/build/*`, GitHub Pages check.
 - Accept: three playtesters (one per scenario) finish in 30–60 minutes; no console errors across a full campaign; the old prototype still works.

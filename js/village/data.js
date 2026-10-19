@@ -21,7 +21,7 @@
     saveVersion: 1,
     disclaimer: 'Waterworks is an educational student project created in collaboration with charity: water.',
     gameplayNote: 'Populations, distances, times, rainfall, depths and amounts are simplified, fictional gameplay values.',
-    learnUrl: 'https://www.charitywater.org/',
+    learnUrl: 'https://www.charitywater.org/our-work',
     jerryCanLitres: 20, // [ref] the common yellow jerry can holds about 20 litres
     litresPerPersonGoal: 20, // [ref] a commonly used basic-access benchmark (WHO), used here as a game target
     music: { src: 'assets/audio/waterworks-ambient.mp3', defaultVolume: 0.25 },
@@ -130,6 +130,7 @@
           { id: 'river', kind: 'water', x: 74, y: 78, label: 'River' },
           { id: 'lab', kind: 'site', x: 84, y: 58.5, label: 'Station site' },
           { id: 'waterPoint', kind: 'site', minLevel: 3, needsTech: true, below: true, x: 58.6, y: 55.6, ground: [58.6, 53.2], label: 'Tapstand site' },
+          { id: 'issue', kind: 'issue', minLevel: 5, x: 35, y: 41, label: 'Wet ground' },
           { id: 'survey1', kind: 'survey', minLevel: 2, maxLevel: 2, x: 8.5, y: 11.5, label: 'Spring source' },
           { id: 'survey2', kind: 'survey', minLevel: 2, maxLevel: 2, x: 28, y: 31, label: 'Hillside track' },
           { id: 'wood1', kind: 'node', res: 'wood', x: 89, y: 51, charges: 3, yield: 2 },
@@ -146,6 +147,7 @@
             looks: 'Clear and sparkling', note: 'Goats drink at the edge, and cans are dipped straight in.' },
           river: { title: 'River', text: 'A fast river below the village. Cattle cross it upstream.', looks: 'Slightly cloudy' },
           lab: { title: 'Station site', text: 'An empty fenced plot by the lumber yard, which the committee offered for a small field-testing station.' },
+          issue: { title: 'Problem spot', text: 'The caretaker flagged this during the routine check.' },
           waterPoint: { title: 'Tapstand site', text: 'A level spot on the plaza, close to every home, where the pipe from the spring will end in a public tap.' },
           survey1: { title: 'Spring source', text: 'Where the spring first comes out of the rock, above the pool.' },
           survey2: { title: 'Hillside track', text: 'The steep track between the spring and the village.' },
@@ -203,6 +205,7 @@
           { id: 'well', kind: 'water', x: 19, y: 25, label: 'Garden well' },
           { id: 'lab', kind: 'site', x: 47, y: 61, label: 'Station site' },
           { id: 'waterPoint', kind: 'site', minLevel: 3, needsTech: true, below: true, x: 53.3, y: 62.8, ground: [53.3, 60.2], label: 'Well site' },
+          { id: 'issue', kind: 'issue', minLevel: 5, x: 57.2, y: 57.6, label: 'Pump check' },
           { id: 'survey1', kind: 'survey', minLevel: 2, maxLevel: 2, x: 50, y: 11, label: 'Test rig' },
           { id: 'survey2', kind: 'survey', minLevel: 2, maxLevel: 2, x: 87, y: 49, label: 'Canyon rim' },
           { id: 'wood1', kind: 'node', res: 'wood', x: 8, y: 44, charges: 3, yield: 2 },
@@ -219,6 +222,7 @@
             looks: 'Slightly cloudy', note: 'Goats water upstream, and the banks wash in after storms.' },
           well: { title: 'Garden well', text: 'An old, open, shallow well by the gardens. It runs low in the dry months.', looks: 'Clear' },
           lab: { title: 'Station site', text: 'A dry, open patch beside the road that the committee offered for a small field-testing station.' },
+          issue: { title: 'Problem spot', text: 'The caretaker flagged this during the routine check.' },
           waterPoint: { title: 'Well site', text: 'Firm ground beside the square, uphill from latrines and animal pens, chosen with the hydrogeologist for the borehole.' },
           survey1: { title: 'Test rig', text: 'The partner team has set up a small test rig to check what lies underground.' },
           survey2: { title: 'Canyon rim', text: 'A spring spills down the canyon wall, far below the village.' },
@@ -272,6 +276,7 @@
           { id: 'well', kind: 'water', x: 46.5, y: 42.5, label: 'Village well' },
           { id: 'lab', kind: 'site', x: 84, y: 45.5, label: 'Station site' },
           { id: 'waterPoint', kind: 'site', minLevel: 3, needsTech: true, below: true, x: 75.6, y: 55.2, ground: [75.6, 52.6], label: 'Tank site' },
+          { id: 'issue', kind: 'issue', minLevel: 5, x: 72.6, y: 48.2, label: 'Overflowing gutter' },
           { id: 'survey1', kind: 'survey', minLevel: 2, maxLevel: 2, x: 74, y: 52.5, label: 'School roof' },
           { id: 'survey2', kind: 'survey', minLevel: 2, maxLevel: 2, x: 40, y: 61, label: 'South boardwalk' },
           { id: 'wood1', kind: 'node', res: 'wood', x: 12, y: 20, charges: 3, yield: 2 },
@@ -288,6 +293,7 @@
             looks: 'Brownish and cloudy' },
           well: { title: 'Village well', text: 'A shallow hand-pump well on the square. The water comes up fast and clear.', looks: 'Clear' },
           lab: { title: 'Station site', text: 'A dry corner beside the school that the committee offered for a small field-testing station.' },
+          issue: { title: 'Problem spot', text: 'The caretaker flagged this during the routine check.' },
           waterPoint: { title: 'Tank site', text: 'Level ground beside the school, right under its big roof, where a covered tank will catch the rain.' },
           survey1: { title: 'School roof', text: 'The partner engineer wants to measure the big roofs.' },
           survey2: { title: 'South boardwalk', text: 'The boardwalk crosses the lowest, wettest part of the village.' },
@@ -396,6 +402,51 @@
         pros: 'Families who live farthest can start using the water point.', cons: 'More people share the same supply, and checks stay as they are.' },
       reliability: { name: 'Improve storage and reliability', short: 'Add storage and spare parts at the water point.',
         pros: 'More water a day, and new users are verified faster.', cons: 'The farthest homes keep walking for now.' },
+    },
+
+    /* ---- Level 5: keeping the water flowing ----------------------------------------------------
+       One scenario-specific problem per technology. While it lasts the point gives less water
+       (supplyFactor) and some households lose reliable service until it is fixed. [game]   */
+    maintenance: {
+      issueSupplyFactor: 0.5, issueCondition: 0.55, repairedCondition: 0.95, demoteShare: 0.3,
+      gravityFed: { title: 'A leaking pipe joint', at: [35, 41], fx: 'leak', label: 'Wet ground',
+        report: 'Water reaches the plaza tap slowly, and the ground by the stream crossing stays wet.',
+        options: [
+          { id: 'joint', text: 'A pipe joint has worked loose at the stream crossing', correct: true, why: 'Right. The wet ground and slow tap point to a leak between the spring and the village.' },
+          { id: 'spring', text: 'The spring has dried up', why: 'The spring box is still full and overflowing. The water is getting lost on the way.' },
+          { id: 'germs', text: 'Germs have got into the pipe', why: 'The last water test was safe. The problem is how much water arrives, not its quality.' } ],
+        cost: { wood: 0, stone: 2 },
+        steps: [
+          { id: 'dig', label: 'Uncover the joint with the caretaker', done: 'The loose joint is uncovered, dripping steadily.' },
+          { id: 'fix', label: 'Fit a new coupling and bed it in stone', done: 'A new coupling is in, packed with stone so the pipe can’t shift.' },
+          { id: 'test', label: 'Flush the line and test at the tap', done: 'Full flow at the tap, and the germ test is Safe.' } ] },
+      drilledWell: { title: 'A worn pump', at: [57.2, 57.6], fx: 'pump', label: 'Pump check',
+        report: 'Each stroke lifts less water than before, and the handle has started to wobble.',
+        options: [
+          { id: 'seals', text: 'Worn seals and a loose handle bolt', correct: true, why: 'Right. Seals wear out with use. It’s routine maintenance, not a failure.' },
+          { id: 'dry', text: 'The groundwater has run out', why: 'The survey found deep, reliable groundwater. The water is there; the pump isn’t lifting it well.' },
+          { id: 'apron', text: 'The concrete apron is cracked', why: 'The apron is sound and the drain is clear. That wouldn’t weaken each stroke.' } ],
+        cost: { wood: 2, stone: 0 },
+        steps: [
+          { id: 'lift', label: 'Lift out the pump rods with the mechanic', done: 'Rods and cylinder are out on a clean wooden board.' },
+          { id: 'fix', label: 'Replace the seals and tighten the bolt', done: 'New seals from the committee’s spare-parts kit, bolt tightened.' },
+          { id: 'test', label: 'Pump test and water test', done: 'Strong, steady strokes, and the germ test is Safe.' } ] },
+      rainwater: { title: 'A blocked gutter', at: [72.6, 48.2], fx: 'leaves', label: 'Overflowing gutter',
+        report: 'After the last rain the tank barely rose, and water spilled over the gutter edge.',
+        options: [
+          { id: 'gutter', text: 'Leaves are blocking the gutter and first-flush pipe', correct: true, why: 'Right. Storms wash leaves into the gutter; clearing it is regular caretaker work.' },
+          { id: 'leak', text: 'The tank is leaking', why: 'The ground around the tank is dry. Water isn’t getting in, rather than leaking out.' },
+          { id: 'rain', text: 'There hasn’t been enough rain', why: 'The school rain gauge shows a normal week. The rain fell; it didn’t reach the tank.' } ],
+        cost: { wood: 2, stone: 0 },
+        steps: [
+          { id: 'clear', label: 'Clear the leaves from the gutters', done: 'Gutters scooped clean, with a new leaf screen tied on.' },
+          { id: 'fix', label: 'Clean out the first-flush diverter', done: 'The first-flush pipe is clean and draining again.' },
+          { id: 'test', label: 'Check the inflow and test the water', done: 'Rain runs straight to the tank, and the germ test is Safe.' } ] },
+    },
+    priorities: {
+      handwashing: { name: 'Handwashing station at the school', note: 'Pupils wash hands before lunch and after the latrine.' },
+      garden: { name: 'Water for the community gardens', note: 'A share of spare water keeps the gardens green in the dry weeks.' },
+      fund: { name: 'Grow the repair fund', note: 'A little from every household each month, so the next repair is quick.' },
     },
 
     /* Gathering spots regrow one charge every regrowMs (wall-clock, so it carries across reloads). [game] */
@@ -516,7 +567,15 @@
           { id: 'decide', text: () => 'Meet the water committee about one improvement', check: (s) => !!s.water && !!s.water.decision },
           { id: 'observe', text: (s) => `Run the next two weeks and see the results (${Math.min(2, (s.water && s.water.weeksRun) || 0)}/2)`, check: (s) => !!s.water && s.water.weeksRun >= 2 },
         ] },
-      { id: 5, title: 'Keep It Flowing', next: null, comingSoon: true, objectives: [] },
+      { id: 5, title: 'Keep It Flowing', next: null,
+        objectives: [
+          { id: 'inspect', text: () => 'Inspect the water point with the caretaker', check: (s) => !!s.maint && s.maint.inspected },
+          { id: 'diagnose', text: () => 'Find what is wrong at the problem spot', check: (s) => !!s.maint && s.maint.diagnosed },
+          { id: 'repair', text: (s) => `Carry out the maintenance with the local team${s.maint && !s.maint.repaired ? ` (${s.maint.steps.length}/3)` : ''}`, check: (s) => !!s.maint && s.maint.repaired },
+          { id: 'restore', text: (s) => { const r = s.maint && WV.water ? WV.water.residents(s).reliable : 0; return `Restore reliable service (${Math.min(r, s.maint ? s.maint.reliableBefore : 0)}/${s.maint ? s.maint.reliableBefore : 0} residents)`; },
+            check: (s) => !!s.maint && s.maint.repaired && WV.water.residents(s).reliable >= s.maint.reliableBefore },
+          { id: 'complete', text: () => 'Complete the project review with the committee', check: (s) => !!s.flags.projectComplete },
+        ] },
     ],
 
     /* Tips from the field officer, keyed by the next unfinished objective. */
@@ -547,6 +606,11 @@
       share: 'Open the water point and share its water between homes, school, clinic and gardens.',
       decide: 'The committee has saved for one improvement. Meet them at the {committeePlace}.',
       observe: 'Open the water point and run the next week to see what changes.',
+      inspect: 'The caretaker has noticed something. Tap the water point to inspect it together.',
+      diagnose: 'A problem spot is marked on the map. Take a look and decide what’s wrong.',
+      repair: 'Work through the repair with the local team at the problem spot.',
+      restore: 'Fixed! Families are coming back. Watch reliable service recover, or run the next week.',
+      complete: 'Service is back. Meet the committee for the project review.',
       done: 'Nicely done.',
     },
   };

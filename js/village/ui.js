@@ -63,8 +63,10 @@
 
   U.objective = function (s) {
     const lvl = S().levelDef(s);
+    if (s.flags.campaignComplete) return `<span class="lbl">Project complete</span><span class="txt">Explore ${esc(s.name)} at your own pace</span>${icon('chev-down')}`;
     if (lvl.comingSoon) return `<span class="lbl">Up next</span><span class="txt">Level ${lvl.id}: ${esc(lvl.title)} arrives in the next build</span>${icon('chev-down')}`;
     const o = S().nextObjective(s);
+    if (!o && !lvl.next) return `<span class="lbl">Project complete</span><span class="txt">Your final report is ready</span>${icon('chev-down')}`;
     return (o ? `<span class="lbl">Objective</span><span class="txt">${esc(o.text)}</span>` : `<span class="lbl">Level complete</span><span class="txt">Ready for ${esc(lvl.next)}</span>`) + icon('chev-down');
   };
 
@@ -146,7 +148,7 @@
   U.sheet = function (s, id, ui) {
     const sc = S().sceneOf(s); const h = sc.hotspots.find((x) => x.id === id); const p = sc.places[id];
     if (!h || !p) return '';
-    const kicker = { source: 'Water collection point', water: 'Water source', committee: 'Village water committee', site: 'Construction site', place: 'Place', survey: 'Survey site' }[h.kind];
+    const kicker = id === 'waterPoint' && s.builds.waterPoint === 'built' ? 'Water point' : { issue: 'Maintenance', source: 'Water collection point', water: 'Water source', committee: 'Village water committee', site: 'Construction site', place: 'Place', survey: 'Survey site' }[h.kind];
     let extra = '';
     if (h.kind === 'water') {
       extra = `<div class="sec"><h3 class="sec-t">Your eyes vs the lab</h3>${eyesVsLab(s, id, p.looks)}${sampleBlock(s, id)}</div>`;
@@ -170,9 +172,13 @@
       const plan = s.level >= 3 && !s.flags.systemActive;
       const meet4 = s.level >= 4 && s.water && s.water.allocationSet && !s.water.decision;
       extra = `<div class="sec"><ul class="members">${members}</ul>
+        ${s.maint && s.maint.repaired && !s.flags.projectComplete ? `<button type="button" class="btn primary block" data-act="open-review">${icon('people')} Project review</button>` : ''}
+        ${s.flags.projectComplete ? `<button type="button" class="btn block" data-act="open-finale">${icon('can')} Read the project report</button>` : ''}
         ${meet4 ? `<button type="button" class="btn primary block" data-act="open-decision">${icon('people')} Committee meeting</button>` : ''}
         ${plan ? `<button type="button" class="btn primary block" data-act="plan-meeting">${icon('people')} ${s.tech ? 'Review the project plan' : s.flags.planningMet ? 'Choose the water system' : 'Plan the water project'}</button>` : ''}
         <button type="button" class="btn ${s.flags.committeeMet || plan ? '' : 'primary'} block" data-act="meet-committee">${icon('people')} ${s.flags.committeeMet ? 'Talk with the committee again' : 'Meet the committee'}</button></div>`;
+    } else if (h.kind === 'issue') {
+      extra = s.maint ? issueSheet(s, ui) : '';
     } else if (h.kind === 'site' && id === 'waterPoint') {
       extra = waterPointSheet(s, ui);
     } else if (h.kind === 'site') {
@@ -226,18 +232,95 @@
         ${reps ? `<div class="canfill" aria-hidden="true"><i style="height:${(n / reps) * 100}%"></i></div><p class="muted small" role="status">Strokes: ${n} of ${reps}</p>` : ''}
         ${next ? `<button type="button" class="btn primary block" data-act="activate" ${ui.activating ? 'aria-disabled="true"' : ''}>${icon('can')} ${ui.activating ? 'Working…' : reps ? `Pump (${n}/${reps})` : esc(next.label)}</button>` : ''}</div>`;
     }
+    if (s.maint && !s.maint.repaired) return inspectionPanel(s, ui);
     const m = S().metrics(s); const W = WV.water; const r = W.residents(s); const w = s.water;
     const L4 = s.level >= 4;
     const review = WV.water.needsReview(s) ? `<p class="note warn">${icon('warn')}<span>The water supply changed. The sharing plan needs review: it now asks for more than the point gives.</span></p><button type="button" class="btn primary block" data-act="open-allocation">${icon('can')} Review the sharing plan</button>` : '';
     const act = review ? review : !L4 ? '' : !w.allocationSet ? `<button type="button" class="btn primary block" data-act="open-allocation">${icon('can')} Share the water</button>`
       : !w.decision ? `<button type="button" class="btn block" data-act="open-allocation">${icon('can')} Adjust the sharing</button><p class="note">${icon('people')}<span>The committee would like to meet about one improvement.</span></p>`
-      : `<button type="button" class="btn primary block" data-act="run-week" ${ui.running ? 'aria-disabled="true"' : ''}>${icon('chev-right')} ${ui.running ? 'A week passes…' : 'Run the next week'}</button>`;
+      : `<button type="button" class="btn primary block" data-act="run-week" ${ui.running ? 'aria-disabled="true"' : ''}>${icon('chev-right')} ${ui.running ? 'A week passes…' : 'Run the next week'}</button>
+         <button type="button" class="btn block" data-act="open-allocation">${icon('can')} Adjust the sharing</button>`;
     return `<div class="sec built-card">${icon('check', 'ic-lg')}<div><b>Water is flowing</b><p>Capacity for about ${fmt(w.capacityCans)} jerry cans a day. Families are starting to use it.</p></div></div>
       <dl class="facts"><div><dt>Verified users</dt><dd>${fmt(r.project)}</dd></div><div><dt>Trying it out</dt><dd>${fmt(r.trying)}</dd></div>
       <div><dt>Round trip</dt><dd>${m.roundTripAfter} min <small>(was ${s.baseline.roundTripMin})</small></dd></div><div><dt>Germ test</dt><dd><span class="result ok">${icon('check')}Safe</span></dd></div></dl>
       ${act}
+      ${s.maint ? `<div class="cond"><span>Condition</span>${condBar(s.maint.condition)}</div>` : ''}
       <p class="note">${icon('wrench')}<span><b>${esc(s.people.caretaker.name)}</b>, caretaker: ${esc(tech.maintenanceLine)}</span></p>`;
   }
+
+  /* ---- Level 5: inspection, diagnosis, repair ------------------------------------------- */
+  const condBar = (c) => { const p = Math.round(c * 100); const tone = p >= 80 ? 'ok' : p >= 60 ? 'warn' : 'risk';
+    return `<span class="condbar ${tone}" role="img" aria-label="Condition ${p} percent"><i style="width:${p}%"></i></span><b>${p}%</b>`; };
+  function inspectionPanel(s, ui) {
+    const mt = s.maint; const d = WV.maint.def(s); const r = WV.water.residents(s); const w = s.water;
+    const flow = Math.round((w.supplyFactor == null ? 1 : w.supplyFactor) * 100);
+    return `<div class="sec"><h3 class="sec-t">Routine check with ${esc(s.people.caretaker.name)}</h3>
+        <dl class="facts inspect"><div><dt>Condition</dt><dd class="cond">${condBar(mt.condition)}</dd></div><div><dt>Water flow</dt><dd>${flow}% of normal</dd></div>
+        <div><dt>Reliable water</dt><dd>${fmt(r.reliable)} residents</dd></div><div><dt>Maintenance</dt><dd><span class="result warn">${icon('warn')}Needs attention</span></dd></div></dl>
+        ${mt.inspected ? `<p class="note warn">${icon('wrench')}<span><b>${esc(d.title)}.</b> ${esc(d.report)} The problem spot is marked on the map.</span></p>
+          <button type="button" class="btn primary block" data-act="goto-issue">${icon('flag')} Go to the problem spot</button>`
+          : `<p class="muted">The flow looks lower than usual. Let’s check it together.</p><button type="button" class="btn primary block" data-act="maint-inspect">${icon('eye')} Inspect with the caretaker</button>`}
+        ${mt.demoted ? `<p class="muted small">About ${fmt(Math.round(mt.demoted * WV.water.hhSize(s)))} residents lost reliable service when the flow dropped.</p>` : ''}</div>`;
+  }
+  function issueSheet(s, ui) {
+    const mt = s.maint; const d = WV.maint.def(s);
+    if (!mt.diagnosed) {
+      const opts = d.options.map((o) => { const wrong = mt.wrong.indexOf(o.id) >= 0;
+        return `<li><button type="button" class="btn block opt-btn ${wrong ? 'wrong' : ''}" data-act="maint-diagnose" data-id="${o.id}" ${wrong ? 'aria-disabled="true"' : ''}>${wrong ? icon('x') : icon('dot')} ${esc(o.text)}</button>${wrong ? `<small class="why">${esc(o.why)}</small>` : ''}</li>`; }).join('');
+      return `<div class="sec"><p class="note">${icon('eye')}<span>${esc(d.report)}</span></p><h3 class="sec-t">What do you think is wrong?</h3><ul class="diag">${opts}</ul>
+        <p class="muted small">${esc(s.people.caretaker.name)} and ${esc(s.people.engineer.name)} will confirm before anyone starts work.</p></div>`;
+    }
+    const right = d.options.find((o) => o.correct);
+    const next = WV.maint.nextStep(s); const cost = d.cost; const costTxt = Object.keys(cost).filter((k) => cost[k]).map((k) => `${cost[k]} ${k}`).join(' + ');
+    const rows = d.steps.map((x) => { const done = mt.steps.indexOf(x.id) >= 0; return `<li class="${done ? 'done' : next && next.id === x.id ? 'now' : ''}">${icon(done ? 'check' : 'dot')}<span>${esc(done ? x.done : x.label)}</span></li>`; }).join('');
+    const short = mt.steps.length === 0 && Object.keys(cost).some((k) => s.resources[k] < cost[k]);
+    return `<div class="sec"><p class="note">${icon('check')}<span>${esc(right.why)}</span></p>
+      <h3 class="sec-t">Repair with ${esc(s.people.caretaker.name)}, the trained caretaker</h3><ol class="steps">${rows}</ol>
+      ${mt.steps.length === 0 ? `<ul class="costs">${costRow(s, Object.fromEntries(Object.entries(cost).filter(([, v]) => v > 0)))}</ul><p class="muted small">Spare parts come from the committee’s repair kit; the village adds ${esc(costTxt)}.</p>` : ''}
+      ${short ? `<p class="note warn">${icon('flag')}<span>A little more ${Object.keys(cost).filter((k) => s.resources[k] < cost[k]).join(' and ')} needed. The gathering spots regrow every few seconds.</span></p>` : ''}
+      ${next ? `<button type="button" class="btn primary block" data-act="maint-step" ${ui.repairing || short ? 'aria-disabled="true"' : ''}>${icon('wrench')} ${ui.repairing ? 'Working…' : esc(next.label)}</button>` : ''}</div>`;
+  }
+  U.issueSheet = issueSheet;
+
+  U.review = function (s) {
+    const rp = WV.maint.report(s); const pri = s.maint.priority;
+    const opts = Object.keys(D().priorities).map((id) => { const p = D().priorities[id];
+      return `<li><button type="button" class="btn block pri ${pri === id ? 'chosen' : ''}" data-act="choose-priority" data-id="${id}" aria-pressed="${pri === id}">${icon(pri === id ? 'check' : 'dot')}<span><b>${esc(p.name)}</b><small>${esc(p.note)}</small></span></button></li>`; }).join('');
+    return `<div class="dlg-head"><div><p class="kicker">Project review · ${esc(s.name)}</p><h2 id="dlgTitle">Keeping the water flowing</h2></div>${closeBtn()}</div>
+      <div class="dlg-body">
+        <ul class="summary"><li><b>${fmt(rp.reliable)}</b><span>of ${fmt(rp.population)} residents with reliable water</span></li>
+          <li><b>${rp.condition}%</b><span>water point condition after the repair</span></li>
+          <li><b>${fmt(rp.stillWaiting)}</b><span>residents still on the way to reliable water</span></li></ul>
+        <div class="person-line">${portrait('caretaker', 44)}<p><b>${esc(s.people.caretaker.name)}</b>: “I check it every week. When something wears out, the committee has parts and I know how to fit them.”</p></div>
+        <div class="person-line">${portrait('officer', 44)}<p><b>${esc(s.people.officer.name)}</b>: “Our team keeps visiting to follow up. Some systems even report their flow automatically, like charity: water’s monitoring work, but most rely on people like ${esc(s.people.caretaker.name)}.”</p></div>
+        <div class="person-line">${portrait('chair', 44)}<p><b>${esc(s.people.chair.name)}</b>: “The water is ours to look after now. What should the committee focus on next?”</p></div>
+        <ul class="prio">${opts}</ul>
+      </div>
+      <div class="dlg-foot"><button type="button" class="btn primary" data-act="complete-project" ${pri ? '' : 'aria-disabled="true"'}>${icon('check')} Complete the final report</button></div>`;
+  };
+
+  U.finale = function (s) {
+    const rp = s.maint.report || WV.maint.report(s); const sc = S().sceneOf(s);
+    const burst = Array.from({ length: 14 }, (_, i) => `<i style="--a:${i * 26}deg;--d:${60 + (i % 3) * 22}px;--t:${(i % 5) * 0.08}s"></i>`).join('');
+    const time = rp.hoursPerDay > 0 ? `<li><b>≈ ${fmt(rp.hoursPerDay)} h a day</b><span>of walking and waiting given back, about ${fmt(rp.hoursPerYear)} hours a year (round trip ${rp.roundTripBefore} → ${rp.roundTripAfter} min)</span></li>`
+      : `<li><b>Shorter walks</b><span>for every family using the new water point</span></li>`;
+    return `<div class="finale-art" style="background-image:url('${esc(sc.image)}')" aria-hidden="true"><span class="finale-burst">${burst}</span><span class="big-can">${icon('can')}</span></div>
+      <div class="dlg-head"><div><p class="kicker">${esc(rp.village)} · ${esc(rp.scenario)} · ${esc(rp.technology)}</p><h2 id="dlgTitle" class="finale-title">Water Changes Everything</h2><p class="finale-sub">Your village has built more than a water system.</p></div></div>
+      <div class="dlg-body">
+        <ul class="summary finale-stats">
+          <li><b>${fmt(rp.reliable)} of ${fmt(rp.population)}</b><span>residents with reliable, safe water</span></li>
+          <li><b>+${fmt(rp.gained)}</b><span>more than at the start (${fmt(rp.startReliable)} had their own safe method)</span></li>
+          ${time}
+          <li><b>${rp.condition}%</b><span>water point condition, cared for by ${esc(s.people.caretaker.name)} and the committee</span></li>
+          <li><b>${esc(rp.priority || '—')}</b><span>the committee’s next community project</span></li>
+          <li><b>${fmt(rp.stillWaiting)}</b><span>residents still on the way to reliable water. The work continues.</span></li>
+        </ul>
+        <p class="muted small">All figures are fictional simulation estimates from your village, not real project data. ${esc(D().disclaimer)}</p>
+      </div>
+      <div class="dlg-foot finale-foot"><a class="btn" href="${esc(D().learnUrl)}" target="_blank" rel="noopener">${icon('external')} Learn about real projects</a>
+        <button type="button" class="btn" data-act="new-village">Start a new village</button>
+        <button type="button" class="btn primary" data-act="next-level">${icon('chev-right')} Explore your village</button></div>`;
+  };
 
   /* ---- Level 4: community panel, sharing, committee decision ---------------------------- */
   const CAT_INFO = [
@@ -563,6 +646,7 @@
         </div>
         <div class="dlg-foot"><button type="button" class="btn primary" data-act="next-level">Continue ${icon('chev-right')}</button></div>`;
     }
+    if (lvl.id === 5) return U.finale(s);
     if (lvl.id === 4) {
       const r = WV.water.residents(s); const d = D().decisions[s.water.decision];
       return `${banner(s, 'celebrate', `<span class="big-can">${icon('people')}</span>`)}

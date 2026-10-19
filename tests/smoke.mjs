@@ -362,14 +362,68 @@ async function playCampaign(scenario, vp) {
   await click('[data-act="next-level"]'); await sleep(300);
   check(await S('s.level === 5 && s.completedLevels.includes(4)'), 'Level 5 unlocked');
 
+  // ---- Level 5: keep the water flowing ---------------------------------------------
+  const musicL5 = await evaluate('WV.audio.state().position');
+  check(await S('!!s.maint && s.water.supplyFactor < 1 && WV.water.residents(s).reliable < s.maint.reliableBefore'), 'a maintenance problem reduces service');
+  check(await evaluate('document.querySelector("svg.scene").classList.contains("maint-issue")'), 'the map shows the problem');
+  await click('#hotspots [data-id="waterPoint"]'); await sleep(300);
+  check(await evaluate('/Needs attention/.test(document.getElementById("sheet").textContent) && !!document.querySelector("#sheet .condbar")'), 'inspection panel shows condition, flow, access and status');
+  await click('#sheet [data-act="maint-inspect"]'); await sleep(300);
+  check(await S('s.maint.inspected') && await evaluate('!document.querySelector(\'#hotspots [data-id="issue"]\').hidden'), 'the problem spot appears');
+  if (vp[0] >= 1000) await shot(`${scenario}-25-inspect`);
+  await click('#sheet [data-act="goto-issue"]'); await sleep(400);
+  const wrongOpt = await S('WV.maint.def(s).options.find((o) => !o.correct).id');
+  await click(`#sheet [data-act="maint-diagnose"][data-id="${wrongOpt}"]`); await sleep(250);
+  check(await S('!s.maint.diagnosed && s.maint.wrong.length === 1') && await evaluate('!!document.querySelector("#sheet .why")'), 'a wrong diagnosis is explained, no penalty');
+  const rightOpt = await S('WV.maint.def(s).options.find((o) => o.correct).id');
+  await click(`#sheet [data-act="maint-diagnose"][data-id="${rightOpt}"]`); await sleep(300);
+  check(await S('s.maint.diagnosed'), 'diagnosis confirmed');
+  if (vp[0] >= 1000) await shot(`${scenario}-26-diagnose`);
+  for (let guard = 0; guard < 40 && !(await S('s.maint.repaired')); guard++) {
+    const short = await S('s.maint.steps.length === 0 && Object.keys(WV.maint.def(s).cost).some((k) => s.resources[k] < WV.maint.def(s).cost[k])');
+    if (short) {
+      const target = await S('(() => { const c = WV.maint.def(s).cost; const res = Object.keys(c).find((k) => s.resources[k] < c[k]); const h = WV.sim.sceneOf(s).hotspots.find((x) => x.kind === "node" && x.res === res && s.nodes[x.id].charges > 0); return h ? h.id : null; })()');
+      if (target) { for (let h = 0; h < 3; h++) { await click(`#hotspots [data-id="${target}"]`); await sleep(110); } await sleep(620); } else await sleep(1000);
+      await click('#hotspots [data-id="issue"]'); await sleep(250); continue;
+    }
+    await click('#sheet [data-act="maint-step"]'); await sleep(1500);
+  }
+  check(await S('s.maint.repaired && s.maint.condition >= 0.9 && s.water.supplyFactor === 1'), 'repair restores condition and supply');
+  check(await S('s.maint.reliableAtRepair < s.maint.reliableBefore'), 'access is not restored instantly by the repair');
+  check(await evaluate('!document.querySelector("svg.scene").classList.contains("maint-issue") && document.querySelector(\'#hotspots [data-id="issue"]\').hidden'), 'the warning disappears');
+  for (let i = 0; i < 30 && !(await S('WV.water.residents(s).reliable >= s.maint.reliableBefore')); i++) await sleep(1000);
+  check(await S('WV.water.residents(s).reliable >= s.maint.reliableBefore'), 'reliable service recovers over the next periods');
+  await click('#hotspots [data-id="committee"]'); await sleep(250);
+  await click('#sheet [data-act="open-review"]'); await sleep(350);
+  check(await evaluate('document.querySelectorAll(\'[data-act="choose-priority"]\').length === 3'), 'project review with three community priorities');
+  await click('[data-act="choose-priority"][data-id="garden"]'); await sleep(200);
+  if (vp[0] >= 1000) await shot(`${scenario}-27-review`);
+  await click('[data-act="complete-project"]'); await sleep(1200);
+  check(await evaluate('/Water Changes Everything/.test(document.getElementById("dlg").textContent) && /more than a water system/.test(document.getElementById("dlg").textContent)'), 'finale screen');
+  const shownReliable = await evaluate('Number(document.querySelector(".finale-stats li b").textContent.split(" of ")[0].replace(/,/g, ""))');
+  check(shownReliable === await S('s.maint.report.reliable') && await S('s.maint.report.reliable + s.maint.report.stillWaiting === s.population'), 'finale numbers come from the saved simulation report');
+  check(await evaluate('document.querySelector(\'.finale-foot a\').href === "https://www.charitywater.org/our-work" && document.querySelector(\'.finale-foot a\').target === "_blank"'), 'learn link opens charity: water’s project page in a new tab');
+  await sleep(1200); await shot(`${scenario}-28-finale-${vp[0]}`);
+  const musicEnd = await evaluate('WV.audio.state()');
+  check(musicEnd.playing && musicEnd.position > musicL5 + 5, `music kept playing through Level 5 (${musicL5.toFixed(1)}s → ${musicEnd.position.toFixed(1)}s)`);
+  await click('.finale-foot [data-act="next-level"]'); await sleep(500);
+  check(await S('s.flags.campaignComplete && s.completedLevels.includes(5)'), 'campaign complete; exploring the village');
+  check(await evaluate('/Project complete/.test(document.getElementById("hudObjective").textContent) && WV.scene.walkerPositions().length >= 4 && document.querySelectorAll(".animal").length >= 3'), 'the finished village stays alive');
+  await click('#hotspots [data-id="waterPoint"]'); await sleep(250);
+  check(await evaluate('!!document.querySelector(\'#sheet [data-act="open-allocation"]\')'), 'allocations can still be adjusted');
+  await click('#sheet [data-act="close-sheet"]');
+
   // save → reload → continue
-  const waterBefore = await S('JSON.stringify({ hh: s.water.hh, far: s.water.far, decision: s.water.decision, allocation: s.water.allocation, weeksRun: s.water.weeksRun })');
+  const waterBefore = await S('JSON.stringify({ hh: s.water.hh, far: s.water.far, decision: s.water.decision, allocation: s.water.allocation, weeksRun: s.water.weeksRun, periods: s.water.periods, households: s.households })');
   await go(`${BASE}/index.html`);
   check(await evaluate('!document.getElementById("continueBtn").hidden'), 'Continue offered after reload');
   await click('#continueBtn'); await sleep(600);
-  check(await S(`s.level === 5 && s.builds.waterPoint === 'built' && s.flags.systemActive && s.name === 'Smoke Ridge' && s.scenarioId === '${scenario}' && Object.keys(s.results).length === 2`), 'continue restores all four levels');
-  const waterAfter = await S('JSON.stringify({ hh: s.water.hh, far: s.water.far, decision: s.water.decision, allocation: s.water.allocation, weeksRun: s.water.weeksRun })');
-  check(waterAfter === waterBefore, 'continue restores household access exactly (no duplicated progress)');
+  check(await S(`s.level === 5 && s.flags.campaignComplete && s.maint.repaired && s.builds.waterPoint === 'built' && s.name === 'Smoke Ridge' && s.scenarioId === '${scenario}'`), 'a completed village reopens with everything intact');
+  const waterAfter = await S('JSON.stringify({ hh: s.water.hh, far: s.water.far, decision: s.water.decision, allocation: s.water.allocation, weeksRun: s.water.weeksRun, periods: s.water.periods, households: s.households })');
+  { const b = JSON.parse(waterBefore), a = JSON.parse(waterAfter); const tot = (x) => Object.values(x.hh).reduce((p, v) => p + v, 0);
+    check((waterAfter === waterBefore || a.periods === b.periods + 1) && tot(a) === b.households && JSON.stringify(a.allocation) === JSON.stringify(b.allocation),
+      `continue restores household access without duplicating it (periods ${b.periods} → ${a.periods})`); }
+  check(JSON.parse(waterAfter).weeksRun === JSON.parse(waterBefore).weeksRun && JSON.parse(waterAfter).decision === JSON.parse(waterBefore).decision, 'continue keeps the committee decision and weeks run');
   check(await evaluate('document.querySelector(".site.wp").getAttribute("data-state") === "built" && document.querySelector("svg.scene").classList.contains("system-active")'), 'the active water system is drawn after continue');
   check(await evaluate('document.querySelector(".site").getAttribute("data-state") === "built"'), 'built station is drawn after continue');
 }
@@ -377,6 +431,15 @@ async function playCampaign(scenario, vp) {
 for (const sc of ['highland', 'plateau', 'wetland']) await playCampaign(sc, [1440, 900]);
 await playCampaign('plateau', [390, 844]);
 await playCampaign('wetland', [1024, 768]);
+
+// ---- a new village starts from scratch ----------------------------------------------
+console.log('\nnew village');
+await go(`${BASE}/index.html`); await click('#continueBtn'); await sleep(400);
+await evaluate('window.confirm = () => true; true');
+await click('[data-act="open-menu"]'); await sleep(200); await click('[data-act="new-village"]'); await sleep(300);
+await evaluate('document.getElementById("villageName").value = "Second Valley"; true'); await click('#nameForm button[type="submit"]'); await sleep(600);
+check(await S('s.name === "Second Valley" && s.level === 1 && !s.maint && !s.flags.campaignComplete && s.builds.lab === "site" && s.resources.wood === 0'), 'a new village resets progression');
+await click('[data-act="begin"]'); await sleep(300);
 
 // ---- music preferences persist and never duplicate -----------------------------
 console.log('\nmusic');

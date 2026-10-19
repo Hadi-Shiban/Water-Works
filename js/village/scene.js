@@ -267,6 +267,7 @@
       <g class="routes">${routesMarkup()}</g>
       <g class="system">${pipe}${gutter}${extras}</g>
       <g class="animals">${animalsMarkup()}</g>
+      ${issueMarkup()}
       <g class="cottages">${cottages}</g>
       <g class="sites">${sites}</g>
       <g class="walkers"></g>
@@ -287,6 +288,17 @@
         <g class="dust"><circle cx="-14" cy="2" r="5"/><circle cx="12" cy="0" r="4"/><circle cx="0" cy="4" r="6"/></g></g>
       <g class="st-built"><circle r="56" cy="-14" fill="url(#wv-glow)" class="glow"/><use href="#art-${art}"/>
         <g class="splash"><circle cx="-14" cy="-14" r="1.6"/><circle cx="-12" cy="-10" r="1.3"/><circle cx="-14" cy="-6" r="1.5"/></g></g>
+    </g>`;
+  }
+
+  /* Level 5: a small, readable sign of the problem at its spot (drips, leaves or a sagging pump). */
+  function issueMarkup() {
+    const h = scene.hotspots.find((x) => x.id === 'issue'); if (!h) return '';
+    const [px, py] = P(h.x, h.y); const k = scene.structureScale;
+    return `<g class="issue-fx" data-fx="" transform="translate(${f1(px)} ${f1(py + 14 * k)}) scale(${k})">
+      <g class="fx-leak"><ellipse rx="16" ry="5" fill="#3f7fa6" opacity=".45"/><circle class="drop" cx="-3" cy="-10" r="2.2"/><circle class="drop d2" cx="4" cy="-12" r="1.8"/><circle class="drop d3" cx="0" cy="-8" r="1.5"/></g>
+      <g class="fx-leaves">${[[-12, -4, 20], [-4, -7, -30], [6, -3, 50], [13, -6, 10], [0, -2, -60]].map(([x, y, r]) => `<ellipse cx="${x}" cy="${y}" rx="4" ry="2" transform="rotate(${r} ${x} ${y})" fill="${r > 0 ? '#9a7a2c' : '#6f8f3a'}"/>`).join('')}<path class="spill" d="M14 -6 q2 6 0 12" fill="none" stroke="#7fc0e6" stroke-width="2"/></g>
+      <g class="fx-pump"><path d="M-10 -26 l-4 -4 M10 -26 l4 -4 M0 -30 v-5" stroke="#b0390b" stroke-width="2" stroke-linecap="round"/></g>
     </g>`;
   }
 
@@ -467,6 +479,9 @@
     const sysState = s.flags.systemActive ? 'active' : s.builds.waterPoint === 'built' ? 'built' : 'hidden';
     els.svg.querySelectorAll('.pipeline, .gutter, .sys-extra').forEach((g) => { if (!g.classList.contains('flowing')) g.setAttribute('data-state', sysState); });
     els.svg.classList.toggle('system-active', !!s.flags.systemActive);
+    const issueOn = !!s.maint && !s.maint.repaired;
+    els.svg.classList.toggle('maint-issue', issueOn);
+    const fx = els.svg.querySelector('.issue-fx'); if (fx) fx.setAttribute('data-fx', issueOn ? WV.maint.def(s).fx : '');
     els.svg.classList.toggle('watching', !!ui.watching);
     const targets = ui.targets || [];
     els.hs.querySelectorAll('.hs').forEach((b) => {

@@ -53,7 +53,9 @@
       case 'lab': return st.flags.committeeMet ? ['lab'] : ['committee'];
       case 'meeting': case 'choose': return ['committee'];
       case 'site': case 'build': case 'activate': case 'open': case 'share': case 'observe': return ['waterPoint'];
-      case 'decide': return ['committee'];
+      case 'decide': case 'complete': return ['committee'];
+      case 'inspect': case 'restore': return ['waterPoint'];
+      case 'diagnose': case 'repair': return ['issue'];
       case 'review': return [];
       case 'materials': {
         const need = D.technologies[st.tech].cost;
@@ -222,10 +224,10 @@
   function maybeCompleteLevel() {
     if (!s || ui.levelShown || !sim.levelReady(s)) return;
     ui.levelShown = true;
-    setTimeout(() => openDialog(U.levelComplete(s), 'dlg-wide modal-strict', () => {
+    setTimeout(() => openDialog(U.levelComplete(s), s.level === 5 ? 'dlg-wide dlg-finale modal-strict' : 'dlg-wide modal-strict', () => {
       const r = sim.completeLevel(s); ui.levelShown = false;
       if (r.ok) { ui.selected = null; commit(r.state); ui.checklistOpen = true; render(); }
-    }), prefs.reducedMotion ? 200 : s.level === 3 ? 3800 : 1100); // Level 3: let the village change sink in first
+    }), prefs.reducedMotion ? 200 : s.level === 3 ? 3800 : s.level === 5 ? 500 : 1100); // Level 3: let the village change sink in first
   }
 
   function openMenu() { openDialog(U.menu(s, audio.state(), prefs), 'dlg-narrow'); }
@@ -388,6 +390,43 @@
     }, prefs.reducedMotion ? 200 : 1400);
   }
 
+  /* ---- Level 5: inspect, diagnose, repair, review ------------------------------------------- */
+  function maintInspect() {
+    const r = WV.maint.inspect(s); if (!r.ok) { toast('Not yet', U.esc(r.reason)); return; }
+    commit(r.state); announce('Problem found. The problem spot is marked on the map.');
+  }
+  function gotoIssue() { ui.selected = null; render(); setTimeout(() => inspect('issue'), 0); }
+  function maintDiagnose(id) {
+    const r = WV.maint.diagnose(s, id); if (!r.ok) { toast('Not yet', U.esc(r.reason)); return; }
+    commit(r.state);
+    if (r.correct) toast('Diagnosis confirmed', `${U.esc(s.people.caretaker.name)} agrees. Time to fix it.`, 'good');
+    announce(r.correct ? 'Correct. Now carry out the repair.' : `Not quite. ${r.why}`);
+  }
+  function maintStep() {
+    if (ui.repairing) return;
+    const next = WV.maint.nextStep(s); if (!next) return;
+    ui.repairing = true; scene.systemFx(next.id === 'test' ? 'tap' : 'pump'); render();
+    setTimeout(() => {
+      ui.repairing = false;
+      const r = WV.maint.repairStep(s, next.id);
+      if (!r.ok) { toast('Not yet', U.esc(r.reason)); render(); return; }
+      commit(r.state); announce(next.done);
+      if (r.done) {
+        scene.celebrate('waterPoint'); ui.selected = null; render();
+        toast('Repaired!', 'Full flow is back. Families who switched back to old sources will return over the next few periods.', 'good');
+      }
+    }, prefs.reducedMotion ? 250 : 1300);
+  }
+  function openReview() { openDialog(U.review(s), 'dlg-wide dlg-review'); }
+  function choosePriority(id) {
+    const r = WV.maint.choosePriority(s, id); if (!r.ok) { toast('Not yet', U.esc(r.reason)); return; }
+    s = r.state; persist(); refreshDialog(U.review(s), 'dlg-wide dlg-review');
+  }
+  function completeProject() {
+    const r = WV.maint.completeProject(s); if (!r.ok) { refreshDialog(U.review(s), 'dlg-wide dlg-review'); toast('Not yet', U.esc(r.reason)); return; }
+    closeDialog(); commit(r.state);
+  }
+
   function collectSample(id) {
     const r = sim.collectSample(s, id); if (!r.ok) { toast('Not now', U.esc(r.reason)); return; }
     scene.floatText(id, '+1 water sample');
@@ -446,6 +485,14 @@
       case 'lab-item': labItem(id); break;
       case 'plan-meeting': planMeeting(); break;
       case 'open-population': openPopulation(); break;
+      case 'maint-inspect': maintInspect(); break;
+      case 'goto-issue': gotoIssue(); break;
+      case 'maint-diagnose': maintDiagnose(id); break;
+      case 'maint-step': maintStep(); break;
+      case 'open-review': openReview(); break;
+      case 'choose-priority': choosePriority(id); break;
+      case 'complete-project': completeProject(); break;
+      case 'open-finale': openDialog(U.finale(s), 'dlg-wide dlg-finale'); break;
       case 'open-allocation': ui.allocDraft = null; openAllocation(); break;
       case 'alloc-reset': ui.allocDraft = WV.water.defaultAllocation(s); syncAllocation(null); break;
       case 'alloc-cancel': cancelAllocation(); break;
@@ -544,7 +591,7 @@
   /* Debug and test hooks (used by tests/smoke.mjs). */
   WV.debug = {
     get state() { return s; }, get ui() { return ui; },
-    act, inspect, gather, build, planMeeting, chooseTech, activate, openPopulation, confirmAllocation, cancelAllocation, setDraft, decide, runWeek, watchWalk, committeeAgree, openLab, collectSample, labItem, labGuess, labTest, labStep, labNotes, doSurvey, openOptions, optionsAgree,
+    act, inspect, gather, build, maintInspect, maintDiagnose, maintStep, choosePriority, completeProject, planMeeting, chooseTech, activate, openPopulation, confirmAllocation, cancelAllocation, setDraft, decide, runWeek, watchWalk, committeeAgree, openLab, collectSample, labItem, labGuess, labTest, labStep, labNotes, doSurvey, openOptions, optionsAgree,
     newVillage: (name, scenarioId, salt) => { s = sim.generateVillage(name, salt == null ? 1 : salt, scenarioId); persist(); enterGame(); },
   };
 })(window);
