@@ -18,6 +18,7 @@
   const D = () => WV.data;
 
   let els = {}; let scene = null; let crop = null;
+  const IMG = (p) => (WV.device ? WV.device.img(p) : p);
   let walkers = []; let raf = 0; let route = null; let reduced = false;
 
   const P = (x, y) => [(x / 100) * scene.w, (y / 100) * scene.h];                       // painting % → px
@@ -263,7 +264,7 @@
     const extras = (sys.extras || []).map((e) => { const [px, py] = P(e.at[0], e.at[1]); return `<g class="sys-extra" data-state="hidden" transform="translate(${f1(px)} ${f1(py)}) scale(${f1(k * (e.scale || 1) * 100) / 100})"><use href="#art-${e.art}"/></g>`; }).join('');
     return `<svg class="scene" viewBox="${f1(c.x)} ${f1(c.y)} ${f1(c.w)} ${f1(c.h)}" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
       ${DEFS}
-      <image href="${scene.image}" x="0" y="0" width="${scene.w}" height="${scene.h}" preserveAspectRatio="none"/>
+      <image href="${IMG(scene.image)}" x="0" y="0" width="${scene.w}" height="${scene.h}" preserveAspectRatio="none"/>
       <g class="routes">${routesMarkup()}</g>
       <g class="system">${pipe}${gutter}${extras}</g>
       <g class="animals">${animalsMarkup()}</g>
@@ -377,7 +378,7 @@
     reduced = !!(opts && opts.reducedMotion);
     host.innerHTML = `<div class="mapbox" id="mapbox">${svgMarkup(s)}<div class="hotspots" id="hotspots">${hotspotMarkup(s)}</div><div class="fx" id="fx" aria-hidden="true"></div></div>`;
     // Absolute URL: a relative url() inside a custom property would resolve against css/.
-    host.style.setProperty('--backdrop', `url('${new URL(scene.image, document.baseURI).href}')`);
+    host.style.setProperty('--backdrop', `url('${new URL(IMG(scene.image), document.baseURI).href}')`);
     const oldRo = els.ro;
     els = { host, box: host.querySelector('#mapbox'), svg: host.querySelector('svg'), hs: host.querySelector('#hotspots'), fx: host.querySelector('#fx') };
     planKey = ''; walkers = [];

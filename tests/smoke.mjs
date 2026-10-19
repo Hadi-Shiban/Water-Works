@@ -58,7 +58,11 @@ async function evaluate(expr) {
 }
 async function go(url) { await send('Page.navigate', { url }); await sleep(900); }
 async function shot(name) { const r = await send('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(path.join(OUT, name + '.png'), Buffer.from(r.result.data, 'base64')); }
-async function viewport(w, h, mobile = false) { await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile }); await sleep(200); }
+async function viewport(w, h, mobile = false) {
+  await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: mobile ? 2 : 1, mobile, screenWidth: w, screenHeight: h });
+  await send('Emulation.setTouchEmulationEnabled', { enabled: mobile, maxTouchPoints: mobile ? 5 : 0 });
+  await sleep(200);
+}
 await send('Runtime.enable'); await send('Log.enable'); await send('Page.enable');
 
 let failures = 0;
@@ -80,6 +84,11 @@ async function playCampaign(scenario, vp) {
   await click('#nameForm button[type="submit"]'); await sleep(700);
   check(await S('s.scenarioId') === scenario, 'village created in the requested scenario');
   check(await evaluate('document.getElementById("dlg").open'), 'briefing opens');
+  if (vp[0] < 600) {
+    check(await evaluate('document.documentElement.classList.contains("is-phone") && /\\.mobile\\.jpg$/.test(document.querySelector("svg.scene image").getAttribute("href"))'), 'phones get the light JPEG painting');
+    check(await evaluate('getComputedStyle(document.querySelector("#hotspots .node")).touchAction === "manipulation"'), 'gathering taps cannot trigger double-tap zoom');
+    check(await evaluate('[...document.querySelectorAll("#hotspots .node")].every((n) => n.getBoundingClientRect().width >= 44)'), 'resource spots are at least 44 px to tap');
+  } else check(await evaluate('!document.documentElement.classList.contains("is-phone") && /\\.png$/.test(document.querySelector("svg.scene image").getAttribute("href"))'), 'desktop keeps the full PNG painting');
   if (vp[0] >= 1000) await shot(`${scenario}-1-briefing`);
   check(await evaluate('WV.audio.state().available'), 'music file loads');
   await click('[data-act="begin"]'); await sleep(400);
@@ -167,7 +176,7 @@ async function playCampaign(scenario, vp) {
   check(await S('s.flags.labUnlocked') && await evaluate('document.getElementById("dlg").classList.contains("dlg-labscene")'), 'bringing the sample opens the lab scene');
   const labImg = await evaluate('document.querySelector(".lab-art img").getAttribute("src")');
   const wantImg = { highland: 'highland-springs', plateau: 'red-rock-plateau', wetland: 'wetland-crossroads' }[scenario];
-  check(labImg.includes(`assets/images/lab/${wantImg}/lab-scene.png`) && await evaluate('document.querySelector(".lab-art img").naturalWidth === 1672'), `the ${wantImg} lab image loads`);
+  check(labImg.includes(`assets/images/lab/${wantImg}/lab-scene.${vp[0] < 600 ? 'mobile.jpg' : 'png'}`) && await evaluate('document.querySelector(".lab-art img").naturalWidth === 1672'), `the ${wantImg} lab image loads (${vp[0] < 600 ? 'phone JPEG' : 'PNG'})`);
   check(await evaluate('[...document.querySelectorAll(".lab-hs")].every((b) => b.tagName === "BUTTON" && b.tabIndex === 0 && b.getAttribute("aria-label"))'), 'every lab hotspot is a labelled, focusable button');
   check(await evaluate('document.querySelectorAll(".lab-hs").length >= 10 && document.querySelectorAll(".lab-cover").length === 0'), 'lab hotspots render, with the charity: water wordmarks shown');
   check(await evaluate('document.querySelector(".lab-hs.next").dataset.id === "clear"'), 'the clear jar glows as the next step');
@@ -429,8 +438,20 @@ async function playCampaign(scenario, vp) {
 }
 
 for (const sc of ['highland', 'plateau', 'wetland']) await playCampaign(sc, [1440, 900]);
-await playCampaign('plateau', [390, 844]);
+// Phone runs go last: Chrome's touch emulation can't be fully switched off again.
 await playCampaign('wetland', [1024, 768]);
+await playCampaign('plateau', [390, 844]);
+
+// ---- phone held sideways: compact layout --------------------------------------------
+console.log('\nphone landscape');
+await viewport(844, 390, true);
+await go(`${BASE}/index.html`); await click('#continueBtn'); await sleep(800);
+check(await evaluate('(() => { const h = document.querySelector(".hud").getBoundingClientRect(); return h.height <= 110 && document.documentElement.scrollWidth <= innerWidth; })()'), 'landscape phone: compact HUD, no page overflow');
+await click('#hotspots [data-id="waterPoint"]'); await sleep(300);
+check(await evaluate('(() => { const r = document.getElementById("sheet").getBoundingClientRect(); return r.bottom <= innerHeight + 1 && r.top >= 0; })()'), 'landscape phone: the panel fits on screen');
+await shot('phone-landscape');
+await click('#sheet [data-act="close-sheet"]'); await sleep(200);
+await viewport(1440, 900);
 
 // ---- a new village starts from scratch ----------------------------------------------
 console.log('\nnew village');

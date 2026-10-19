@@ -10,6 +10,7 @@
   const D = () => WV.data;
   const S = () => WV.sim;
   const U = (WV.ui = {});
+  const IMG = (p) => (WV.device ? WV.device.img(p) : p);
 
   const esc = (t) => String(t == null ? '' : t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmt = (v) => Math.round(v).toLocaleString('en-US');
@@ -23,7 +24,7 @@
     const fx = Math.min(sc.crop.x + sc.crop.w, Math.max(sc.crop.x, sc.focus.x)) / 100;
     const px = Math.max(0, Math.min(1, (fx - vis / 2) / (1 - vis))) * 100;
     const py = Math.max(0, Math.min(100, sc.focus.y + 4));
-    return `<div class="dlg-art ${cls || ''}" style="background-image:url('${esc(sc.image)}');background-size:${zoom * 100}% auto;background-position:${px.toFixed(1)}% ${py.toFixed(1)}%" aria-hidden="true">${inner || ''}</div>`;
+    return `<div class="dlg-art ${cls || ''}" style="background-image:url('${esc(IMG(sc.image))}');background-size:${zoom * 100}% auto;background-position:${px.toFixed(1)}% ${py.toFixed(1)}%" aria-hidden="true">${inner || ''}</div>`;
   }
 
   /* Fill {village}, {households}, {committeePlace}… from the state. */
@@ -304,7 +305,7 @@
     const burst = Array.from({ length: 14 }, (_, i) => `<i style="--a:${i * 26}deg;--d:${60 + (i % 3) * 22}px;--t:${(i % 5) * 0.08}s"></i>`).join('');
     const time = rp.hoursPerDay > 0 ? `<li><b>≈ ${fmt(rp.hoursPerDay)} h a day</b><span>of walking and waiting given back, about ${fmt(rp.hoursPerYear)} hours a year (round trip ${rp.roundTripBefore} → ${rp.roundTripAfter} min)</span></li>`
       : `<li><b>Shorter walks</b><span>for every family using the new water point</span></li>`;
-    return `<div class="finale-art" style="background-image:url('${esc(sc.image)}')" aria-hidden="true"><span class="finale-burst">${burst}</span><span class="big-can">${icon('can')}</span></div>
+    return `<div class="finale-art" style="background-image:url('${esc(IMG(sc.image))}')" aria-hidden="true"><span class="finale-burst">${burst}</span><span class="big-can">${icon('can')}</span></div>
       <div class="dlg-head"><div><p class="kicker">${esc(rp.village)} · ${esc(rp.scenario)} · ${esc(rp.technology)}</p><h2 id="dlgTitle" class="finale-title">Water Changes Everything</h2><p class="finale-sub">Your village has built more than a water system.</p></div></div>
       <div class="dlg-body">
         <ul class="summary finale-stats">
@@ -492,7 +493,7 @@
   function magnifier(lab, which, size) {
     const [cx, cy, d] = lab.insets[which]; const ar = D().lab.w / D().lab.h; const dy = d * ar;
     const bx = ((cx - d / 2) / (100 - d)) * 100, by = ((cy - dy / 2) / (100 - dy)) * 100;
-    return `<span class="magnifier" style="width:${size}px;height:${size}px;background-image:url('${esc(lab.image)}');background-size:${(10000 / d).toFixed(1)}% auto;background-position:${bx.toFixed(2)}% ${by.toFixed(2)}%" aria-hidden="true"></span>`;
+    return `<span class="magnifier" style="width:${size}px;height:${size}px;background-image:url('${esc(IMG(lab.image))}');background-size:${(10000 / d).toFixed(1)}% auto;background-position:${bx.toFixed(2)}% ${by.toFixed(2)}%" aria-hidden="true"></span>`;
   }
   function origin(s, id) {
     const label = esc(S().hotspot(s, id).label);
@@ -601,7 +602,7 @@
     const tasks = LAB_STEPS.map((st) => `<li class="${stepDone(s, st) ? 'done' : st.id === (nextStep(s) || {}).id ? 'now' : ''}">${icon(stepDone(s, st) ? 'check' : 'dot')}<span>${esc(st.id === 'map' ? `Survey the land with ${s.people.engineer.name} (${Math.min(2, s.surveys.length)}/2)` : st.text)}</span></li>`).join('');
     return `<div class="dlg-head"><div><p class="kicker">Field lab · ${esc(s.name)}</p><h2 id="dlgTitle">Investigate the water</h2></div>${closeBtn()}</div>
       <div class="lab-wrap">
-        <div class="lab-stage"><div class="lab-art"><img src="${esc(lab.image)}" alt="" width="${D().lab.w}" height="${D().lab.h}" draggable="false">${covers}${hot}</div></div>
+        <div class="lab-stage"><div class="lab-art"><img src="${esc(IMG(lab.image))}" alt="" width="${D().lab.w}" height="${D().lab.h}" draggable="false">${covers}${hot}</div></div>
         <aside class="lab-side"><section class="callout" aria-live="polite">${callout(s, ui, lab)}</section>
           <section class="lab-tasks"><h3 class="sec-t">Level 2 tasks</h3><ol>${tasks}</ol></section></aside>
       </div>`;

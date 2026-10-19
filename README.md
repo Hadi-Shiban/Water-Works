@@ -45,6 +45,8 @@ Field lab scenes (Level 2), one per scenario:
 
 The lab scenes show the charity: water wordmark (sanctioned student collaboration). Lab hotspot rectangles live in `WV.data.lab` and are shared by all three benches; `coverBranding: true` would hide the wordmark with neutral labels.
 
+Each painting has a same-size `.mobile.jpg` copy (about 4× smaller) that phones load instead of the PNG; regenerate with `sips -s format jpeg -s formatOptions 78 in.png --out in.mobile.jpg` if you replace art. Add `?phone=1` to preview the phone version on a desktop.
+
 All six images are 1672×941 and drawn at their own aspect ratio. To replace one, keep the filename and size, or update `w`, `h`, `hotspots` and `routes` for that scene in `js/village/data.js` (use `?dev=routes`). The earlier `assets/environments/env-0*.png` panoramas are kept for the municipal prototype and future scenarios.
 
 ## Village game files
@@ -58,6 +60,7 @@ All six images are 1672×941 and drawn at their own aspect ratio. To replace one
 | `js/village/ui.js` | HTML templates for the HUD, checklist, panels and dialogs |
 | `js/village/water.js` | Household access model: capacity vs reliable access, adoption steps, sharing, committee decision |
 | `js/village/maint.js` | Level 5: scenario-specific maintenance problem, diagnosis, repair, project review and final report |
+| `js/village/device.js` | Phone adaptation: lighter JPEG paintings and an `is-phone` class for cheaper rendering; desktop unchanged |
 | `js/village/audio.js` | One looping music track (`assets/audio/waterworks-ambient.mp3`) with saved mute and volume |
 | `js/village/app.js` | Controller: flow, events, persistence |
 | `css/village.css` | Village game styles (shares `css/tokens.css`) |

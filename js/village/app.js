@@ -583,7 +583,7 @@
   }
 
   /* ---- Boot ------------------------------------------------------------------------------------------ */
-  document.querySelector('.start-art').style.backgroundImage = `url('${D.startArt}')`;
+  document.querySelector('.start-art').style.backgroundImage = `url('${WV.device ? WV.device.img(D.startArt) : D.startArt}')`;
   $('disclaimerStart').textContent = D.disclaimer;
   applyMotion();
   showStart();
