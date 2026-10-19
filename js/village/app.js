@@ -103,6 +103,7 @@
   }
   function closeDialog() { const dlg = $('dlg'); if (dlg.open) dlg.close(); }
   $('dlg').addEventListener('close', () => {
+    if (ui.allocDraft && $('dlg').classList.contains('dlg-alloc')) { ui.allocDraft = null; ui.allocOverride = false; }
     const fn = dlgOnClose; dlgOnClose = null; if (fn) fn();
     const back = dlgReturn; dlgReturn = null;
     if (back && document.contains(back)) back.focus({ preventScroll: true });
@@ -334,25 +335,39 @@
     if (!s.flags.populationPanelSeen && s.level >= 4) { s = sim.setFlag(s, 'populationPanelSeen'); persist(); }
     openDialog(U.population(s), 'dlg-narrow dlg-pop');
   }
+  /* Sharing panel. The draft lives in ui.allocDraft until Apply; Cancel discards it.
+     Moving a slider changes ONLY that sector (WV.water.setDraftValue) and the screen is
+     updated in place, so the slider being dragged is never rebuilt.                  */
   function openAllocation(msg) {
-    if (!ui.allocDraft) ui.allocDraft = { ...s.water.allocation };
-    refreshDialog(U.allocation(s, ui.allocDraft, msg), 'dlg-wide dlg-alloc');
+    if (!ui.allocDraft) { ui.allocDraft = { ...s.water.allocation }; ui.allocOverride = !!s.water.clinicOverride; }
+    refreshDialog(U.allocation(s, ui.allocDraft, msg, { override: ui.allocOverride }), 'dlg-wide dlg-alloc');
+  }
+  function syncAllocation(activeId) {
+    const dlg = $('dlg'); if (!dlg.open || !ui.allocDraft) return;
+    D.allocation.sectors.forEach((x) => {
+      const r = U.allocRowState(s, ui.allocDraft, x.id); const row = dlg.querySelector(`[data-row="${x.id}"]`); if (!row) return;
+      row.style.setProperty('--reach', r.reach.toFixed(1) + '%');
+      row.style.setProperty('--val', r.val.toFixed(1) + '%');
+      const note = row.querySelector('[data-note]'); if (note) note.textContent = r.note;
+      const input = row.querySelector('input'); if (x.id !== activeId || Number(input.value) !== r.got) input.value = String(r.got);
+      input.setAttribute('aria-valuetext', `${r.got} of ${r.need} cans, ${r.pct} percent`);
+      row.querySelector('output').innerHTML = `<b>${r.got}</b> / ${r.need} cans · ${r.pct}%`;
+      const chip = row.querySelector('[data-chip]'); chip.className = `chip ${r.status[1]}`; chip.innerHTML = `<svg class="ic" aria-hidden="true"><use href="#i-${r.status[2]}"/></svg>${r.status[0]}`;
+    });
+    const b = U.allocBudget(s, ui.allocDraft);
+    $('allocBudget').innerHTML = b.html; $('allocClinic').innerHTML = b.clinic; $('allocOverride').hidden = !b.o.clinicLow;
   }
   function setDraft(id, v) {
-    const cap = s.water.capacityCans; const min = id === 'clinic' ? WV.water.clinicMin(cap) : 0;
-    ui.allocDraft[id] = Math.max(min, Math.min(cap, Math.round(v)));
-    // Keep the total fixed: take or give the difference from homes first, then the others.
-    let diff = Object.values(ui.allocDraft).reduce((a, x) => a + x, 0) - cap;
-    for (const k of ['homes', 'garden', 'school', 'clinic'].filter((k) => k !== id)) {
-      if (!diff) break; const lo = k === 'clinic' ? WV.water.clinicMin(cap) : 0;
-      const nv = Math.max(lo, Math.min(cap, ui.allocDraft[k] - diff)); diff -= ui.allocDraft[k] - nv; ui.allocDraft[k] = nv;
-    }
-    openAllocation();
+    const before = { ...ui.allocDraft };
+    ui.allocDraft = WV.water.setDraftValue(s, ui.allocDraft, id, v);
+    syncAllocation(id);
+    if (ui.allocDraft[id] < Math.round(v) && ui.allocDraft[id] === before[id] && WV.water.budget(s, ui.allocDraft).remaining === 0) announce('No water left to share. Reduce another allocation first.');
   }
+  function cancelAllocation() { ui.allocDraft = null; ui.allocOverride = false; closeDialog(); }
   function confirmAllocation() {
-    const r = WV.water.setAllocation(s, ui.allocDraft);
+    const r = WV.water.setAllocation(s, ui.allocDraft, { overrideClinic: ui.allocOverride });
     if (!r.ok) { openAllocation(r.reason); return; }
-    ui.allocDraft = null; closeDialog(); commit(r.state);
+    ui.allocDraft = null; ui.allocOverride = false; closeDialog(); commit(r.state);
     toast('Sharing confirmed', 'The committee will post the schedule at the water point.', 'good');
   }
   function decide(id) {
@@ -432,7 +447,8 @@
       case 'plan-meeting': planMeeting(); break;
       case 'open-population': openPopulation(); break;
       case 'open-allocation': ui.allocDraft = null; openAllocation(); break;
-      case 'alloc-reset': ui.allocDraft = WV.water.defaultAllocation(s.water.capacityCans); openAllocation(); break;
+      case 'alloc-reset': ui.allocDraft = WV.water.defaultAllocation(s); syncAllocation(null); break;
+      case 'alloc-cancel': cancelAllocation(); break;
       case 'alloc-confirm': confirmAllocation(); break;
       case 'open-decision': openDialog(U.decision(s), 'dlg-wide dlg-tech'); break;
       case 'decide': decide(id); break;
@@ -468,10 +484,11 @@
     if (a === 'set-mute') audio.setMuted(!el.checked);
     else if (a === 'set-motion') { prefs.reducedMotion = el.checked; savePrefs(); applyMotion(); }
     else if (a === 'set-tips' && s) commit(sim.setFlag(s, 'tipsOff', !el.checked));
+    else if (a === 'alloc-override') ui.allocOverride = el.checked;
   });
   document.addEventListener('input', (e) => {
     const el = e.target;
-    if (el.dataset && el.dataset.act === 'alloc') { setDraft(el.dataset.id, Number(el.value)); const r = $('dlg').querySelector(`[data-act="alloc"][data-id="${el.dataset.id}"]`); if (r) r.focus(); return; }
+    if (el.dataset && el.dataset.act === 'alloc') { setDraft(el.dataset.id, Number(el.value)); return; }
     if (el.dataset && el.dataset.act === 'set-volume') { audio.setVolume(el.value / 100); const o = $('volOut'); if (o) o.textContent = el.value + '%'; }
   });
   $('nameForm').addEventListener('submit', (e) => { e.preventDefault(); createVillage($('villageName').value); });
@@ -527,7 +544,7 @@
   /* Debug and test hooks (used by tests/smoke.mjs). */
   WV.debug = {
     get state() { return s; }, get ui() { return ui; },
-    act, inspect, gather, build, planMeeting, chooseTech, activate, openPopulation, confirmAllocation, decide, runWeek, watchWalk, committeeAgree, openLab, collectSample, labItem, labGuess, labTest, labStep, labNotes, doSurvey, openOptions, optionsAgree,
+    act, inspect, gather, build, planMeeting, chooseTech, activate, openPopulation, confirmAllocation, cancelAllocation, setDraft, decide, runWeek, watchWalk, committeeAgree, openLab, collectSample, labItem, labGuess, labTest, labStep, labNotes, doSurvey, openOptions, optionsAgree,
     newVillage: (name, scenarioId, salt) => { s = sim.generateVillage(name, salt == null ? 1 : salt, scenarioId); persist(); enterGame(); },
   };
 })(window);

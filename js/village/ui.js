@@ -228,7 +228,8 @@
     }
     const m = S().metrics(s); const W = WV.water; const r = W.residents(s); const w = s.water;
     const L4 = s.level >= 4;
-    const act = !L4 ? '' : !w.allocationSet ? `<button type="button" class="btn primary block" data-act="open-allocation">${icon('can')} Share the water</button>`
+    const review = WV.water.needsReview(s) ? `<p class="note warn">${icon('warn')}<span>The water supply changed. The sharing plan needs review: it now asks for more than the point gives.</span></p><button type="button" class="btn primary block" data-act="open-allocation">${icon('can')} Review the sharing plan</button>` : '';
+    const act = review ? review : !L4 ? '' : !w.allocationSet ? `<button type="button" class="btn primary block" data-act="open-allocation">${icon('can')} Share the water</button>`
       : !w.decision ? `<button type="button" class="btn block" data-act="open-allocation">${icon('can')} Adjust the sharing</button><p class="note">${icon('people')}<span>The committee would like to meet about one improvement.</span></p>`
       : `<button type="button" class="btn primary block" data-act="run-week" ${ui.running ? 'aria-disabled="true"' : ''}>${icon('chev-right')} ${ui.running ? 'A week passes…' : 'Run the next week'}</button>`;
     return `<div class="sec built-card">${icon('check', 'ic-lg')}<div><b>Water is flowing</b><p>Capacity for about ${fmt(w.capacityCans)} jerry cans a day. Families are starting to use it.</p></div></div>
@@ -260,23 +261,50 @@
       </div>`;
   };
 
-  U.allocation = function (s, draft, msg) {
-    const o = WV.water.outcome(s, draft); const STAT = { full: ['Enough', 'ok', 'check'], reduced: ['A little short', 'warn', 'warn'], short: ['Short', 'risk', 'warn'] };
+  /* Share the water: one slider per sector over ONE shared pool. Each slider runs from 0
+     to that sector's full-service demand; the part it can't reach right now (because the
+     pool is used elsewhere) is shaded. app.js updates values in place while dragging.  */
+  const STAT = { full: ['Full service', 'ok', 'check'], reduced: ['Reduced', 'warn', 'warn'], short: ['Short', 'risk', 'warn'] };
+  U.allocRowState = function (s, draft, id) {
+    const o = WV.water.outcome(s, draft); const so = o.sectors[id]; const max = WV.water.maxAllowed(s, draft, id);
+    const hh = o.homesHouseholds;
+    const note = id === 'homes' ? (hh >= s.households ? `Enough for all ${fmt(s.households)} households.` : `Enough for about ${fmt(hh)} of ${fmt(s.households)} households.`) : '';
+    return { got: so.got, need: so.need, pct: Math.round(so.ratio * 100), status: STAT[so.status], reach: so.need ? (max / so.need) * 100 : 100, val: so.need ? (so.got / so.need) * 100 : 0, max, note };
+  };
+  U.allocBudget = function (s, draft) {
+    const o = WV.water.outcome(s, draft);
+    const msg = o.over > 0 ? `${icon('warn')} ${fmt(o.over)} cans more than the water point gives. Reduce an allocation.`
+      : o.remaining === 0 ? `${icon('check')} All available water has been allocated. Reduce another allocation to share more.`
+        : `${icon('can')} ${fmt(o.remaining)} cans not yet shared. Unused water is fine.`;
+    const clinic = o.clinicLow ? `<p class="note warn">${icon('warn')}<span>The clinic is below its recommended ${o.clinicMin} cans a day. Patients and staff may run short.</span></p>` : '';
+    return { html: `<div class="budget-nums"><span><b>${fmt(o.supply)}</b> available</span><span><b>${fmt(o.allocated)}</b> allocated</span><span class="${o.remaining < 0 ? 'neg' : ''}"><b>${fmt(Math.max(0, o.remaining))}</b> remaining</span></div>
+      <div class="budget-bar" aria-hidden="true"><i style="width:${Math.min(100, (o.allocated / Math.max(1, o.supply)) * 100).toFixed(1)}%"></i></div>
+      <p class="budget-msg ${o.over > 0 ? 'warn' : o.remaining === 0 ? 'full' : ''}" role="status">${msg}</p>`, clinic, o };
+  };
+  U.allocation = function (s, draft, msg, opts) {
     const rows = D().allocation.sectors.map((x) => {
-      const so = o.sectors[x.id]; const st = STAT[so.status]; const min = x.critical ? o.clinicMin : 0;
-      return `<li class="alloc-row"><div class="ar-top"><b>${esc(x.name)}${x.critical ? ' <small class="crit">critical</small>' : ''}</b><output id="out-${x.id}">${so.got} cans</output></div>
-        <input type="range" min="${min}" max="${o.cap}" step="1" value="${so.got}" data-act="alloc" data-id="${x.id}" aria-label="${esc(x.name)} jerry cans per day">
-        <div class="ar-foot"><small>${esc(x.note)}${x.id === 'homes' ? (o.homesHouseholds >= s.households ? ` Enough for all ${fmt(s.households)} households.` : ` Enough for about ${fmt(o.homesHouseholds)} of ${fmt(s.households)} households.`) : ` Needs about ${so.need}.`}</small><span class="chip ${st[1]}">${icon(st[2])}${st[0]}</span></div></li>`;
+      const r = U.allocRowState(s, draft, x.id);
+      const min = x.critical ? WV.water.clinicMin(s) : 0;
+      return `<li class="alloc-row" data-row="${x.id}" style="--reach:${r.reach.toFixed(1)}%;--val:${r.val.toFixed(1)}%;--minmark:${r.need ? ((min / r.need) * 100).toFixed(1) : 0}%">
+        <div class="ar-top"><b>${esc(x.name)}${x.critical ? ` <small class="crit">critical · recommended ≥ ${min}</small>` : ''}</b>
+          <output id="out-${x.id}"><b>${r.got}</b> / ${r.need} cans · ${r.pct}%</output></div>
+        <div class="slider-wrap ${x.critical ? 'has-min' : ''}"><input type="range" min="0" max="${r.need}" step="1" value="${r.got}" data-act="alloc" data-id="${x.id}"
+          aria-label="${esc(x.name)}: jerry cans per day, up to ${r.need} for full service" aria-valuetext="${r.got} of ${r.need} cans, ${r.pct} percent"></div>
+        <div class="ar-foot"><small>${esc(x.note)} <span data-note="${x.id}">${r.note}</span></small>
+          <span class="chip ${r.status[1]}" data-chip="${x.id}">${icon(r.status[2])}${r.status[0]}</span></div></li>`;
     }).join('');
-    const left = o.cap - o.total;
-    return `<div class="dlg-head"><div><p class="kicker">Water point · ${fmt(o.cap)} jerry cans a day</p><h2 id="dlgTitle">Share the water</h2></div>${closeBtn()}</div>
+    const b = U.allocBudget(s, draft); const o = b.o;
+    return `<div class="dlg-head"><div><p class="kicker">Water point · shared supply</p><h2 id="dlgTitle">Share the water</h2></div>${closeBtn('alloc-cancel')}</div>
       <div class="dlg-body">
-        <div class="person-line">${portrait('treasurer', 44)}<p><b>${esc(s.people.treasurer.name)}</b>: “The committee proposed a split. Adjust it if you see a better balance. The clinic always gets its minimum.”</p></div>
+        <div class="person-line">${portrait('treasurer', 44)}<p><b>${esc(s.people.treasurer.name)}</b>: “Every slider takes from the same supply. Give a sector more and less is left for the others. Nothing moves on its own.”</p></div>
+        <section class="budget" id="allocBudget">${b.html}</section>
         <ul class="alloc">${rows}</ul>
-        <p class="alloc-sum ${left === 0 ? 'ok' : 'warn'}" role="status">${left === 0 ? `${icon('check')} All ${fmt(o.cap)} cans shared.` : left > 0 ? `${icon('warn')} ${left} cans not yet shared.` : `${icon('warn')} ${-left} cans more than the point gives.`}</p>
+        <div id="allocClinic">${b.clinic}</div>
+        <label class="check override" id="allocOverride" ${o.clinicLow ? '' : 'hidden'}><input type="checkbox" data-act="alloc-override" ${opts && opts.override ? 'checked' : ''}> I understand the clinic will get less than recommended.</label>
         ${msg ? `<p class="note warn">${icon('flag')}<span>${esc(msg)}</span></p>` : ''}
       </div>
-      <div class="dlg-foot"><button type="button" class="btn" data-act="alloc-reset">Committee proposal</button><button type="button" class="btn primary" data-act="alloc-confirm" ${left === 0 ? '' : 'aria-disabled="true"'}>${icon('check')} Confirm sharing</button></div>`;
+      <div class="dlg-foot"><button type="button" class="btn ghost" data-act="alloc-reset">Use committee proposal</button><span class="grow"></span>
+        <button type="button" class="btn" data-act="alloc-cancel">Cancel</button><button type="button" class="btn primary" data-act="alloc-confirm">${icon('check')} Apply</button></div>`;
   };
 
   U.decision = function (s) {

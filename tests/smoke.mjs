@@ -295,15 +295,50 @@ async function playCampaign(scenario, vp) {
   await click('[data-act="close-dialog"]'); await sleep(250);
   await click('#hotspots [data-id="waterPoint"]'); await sleep(250);
   await click('#sheet [data-act="open-allocation"]'); await sleep(350);
-  check(await evaluate('document.querySelectorAll(".alloc-row input[type=range]").length === 4'), 'sharing panel has four sliders');
-  const clinicMin = await evaluate('Number(document.querySelector(\'[data-act="alloc"][data-id="clinic"]\').min)');
-  check(clinicMin > 0, `the clinic slider cannot go below its minimum (${clinicMin})`);
-  await evaluate(`(() => { const r = document.querySelector('[data-act="alloc"][data-id="garden"]'); r.value = String(Number(r.value) + 20); r.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
-  await sleep(200);
-  check(await evaluate('/All [0-9,]+ cans shared/.test(document.querySelector(".alloc-sum").textContent)'), 'moving one slider keeps the total shared');
-  if (vp[0] >= 1000) await shot(`${scenario}-21-share`);
+  check(await evaluate('document.querySelectorAll(".alloc-row input[type=range]").length === 4 && !!document.querySelector("#allocBudget .budget-nums")'), 'sharing panel: four sliders and a shared budget');
+  const vals = () => evaluate('JSON.stringify(Object.fromEntries([...document.querySelectorAll(\'[data-act="alloc"]\')].map((r) => [r.dataset.id, Number(r.value)])))').then(JSON.parse);
+  const confirmed = await vals();
+  const centre = (id) => evaluate(`(() => { const r = document.querySelector('[data-act="alloc"][data-id="${id}"]').getBoundingClientRect(); return [r.left, r.right, r.top + r.height / 2]; })()`);
+  // 1) keyboard: push homes up until the pool is empty
+  await evaluate('document.querySelector(\'[data-act="alloc"][data-id="homes"]\').focus(); true');
+  for (let i = 0; i < 25; i++) { await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39 }); await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39 }); }
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'End', code: 'End', windowsVirtualKeyCode: 35 }); await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'End', code: 'End', windowsVirtualKeyCode: 35 });
+  await sleep(150);
+  let v = await vals();
+  check(v.school === confirmed.school && v.clinic === confirmed.clinic && v.garden === confirmed.garden, 'keyboard: moving homes leaves the other sliders alone');
+  const draft1 = await evaluate('JSON.stringify(WV.debug.ui.allocDraft)').then(JSON.parse);
+  check(v.homes === draft1.homes && await evaluate(`WV.water.sum(WV.debug.ui.allocDraft) <= WV.debug.state.water.capacityCans`), 'keyboard: homes stops within the shared supply');
+  // 2) mouse: drag school all the way right
+  let [l, r, y] = await centre('school');
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: l + 4, y, button: 'left', buttons: 1, clickCount: 1 });
+  for (let i = 1; i <= 12; i++) await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: l + 4 + ((r - l) * i) / 12, y, button: 'left', buttons: 1 });
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: r, y, button: 'left', buttons: 0, clickCount: 1 });
+  await sleep(150);
+  const v2 = await vals();
+  check(v2.homes === v.homes && v2.clinic === v.clinic && v2.garden === v.garden, 'mouse drag: moving school leaves the others alone');
+  check(await evaluate('WV.water.sum(WV.debug.ui.allocDraft) <= WV.debug.state.water.capacityCans && WV.debug.ui.allocDraft.school <= WV.water.needs(WV.debug.state).school'), 'mouse drag: school stops at its demand or the remaining water');
+  if (await evaluate('WV.water.budget(WV.debug.state, WV.debug.ui.allocDraft).remaining === 0')) check(await evaluate('/All available water has been allocated/.test(document.getElementById("allocBudget").textContent)'), 'empty pool says so plainly');
+  // 3) touch: drag homes down, which frees water; nothing else moves
+  [l, r, y] = await centre('homes');
+  await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: r - 6, y }] });
+  for (let i = 1; i <= 8; i++) await send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: r - 6 - ((r - l) * 0.4 * i) / 8, y }] });
+  await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await sleep(150);
+  const v3 = await vals();
+  check(v3.school === v2.school && v3.clinic === v2.clinic && v3.garden === v2.garden, 'touch drag: moving homes leaves the others alone');
+  check(v3.homes < v2.homes && await evaluate('WV.water.budget(WV.debug.state, WV.debug.ui.allocDraft).remaining > 0'), `touch drag: lowering homes returns water to the pool (${v2.homes} → ${v3.homes})`);
+  if (vp[0] >= 1000 || vp[0] < 600) await shot(`${scenario}-21-share-${vp[0]}`);
+  // 4) cancel restores the confirmed plan
+  await click('.dlg-foot [data-act="alloc-cancel"]'); await sleep(300);
+  check(await evaluate(`JSON.stringify(WV.debug.state.water.allocation) === ${JSON.stringify(JSON.stringify(confirmed))}`) || await evaluate('JSON.stringify(WV.debug.state.water.allocation)').then((x) => { const a = JSON.parse(x); return ['homes', 'school', 'clinic', 'garden'].every((k) => a[k] === confirmed[k]); }), 'Cancel keeps the confirmed plan');
+  await click('#sheet [data-act="open-allocation"]'); await sleep(350);
+  check(JSON.stringify(await vals()) === JSON.stringify(confirmed), 'reopening shows the confirmed values, not the cancelled draft');
+  // 5) apply commits exactly the draft
+  await evaluate(`(() => { const r = document.querySelector('[data-act="alloc"][data-id="garden"]'); r.value = String(Math.max(0, Number(r.value) - 2)); r.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+  const draftFinal = await evaluate('JSON.stringify(WV.debug.ui.allocDraft)');
   await click('[data-act="alloc-confirm"]'); await sleep(350);
-  check(await S('s.water.allocationSet && Object.values(s.water.allocation).reduce((a, v) => a + v, 0) === s.water.capacityCans'), 'sharing confirmed and adds up');
+  check(await S('s.water.allocationSet') && await S('JSON.stringify(s.water.allocation)') === draftFinal, 'Apply commits exactly the draft');
+  check(await S('WV.water.validate(s, s.water.allocation).valid'), 'the applied plan is valid');
   await click('#hotspots [data-id="committee"]'); await sleep(250);
   await click('#sheet [data-act="open-decision"]'); await sleep(350);
   check(await evaluate('document.querySelectorAll(\'[data-act="decide"]\').length === 2'), 'committee offers two options');

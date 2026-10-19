@@ -694,27 +694,24 @@ test('P4-8/9 save/continue keeps adoption, and reloading cannot duplicate progre
   assert.equal(migrated.level, 4, 'the village itself is kept');
 });
 
-test('P4-10 sharing the water changes service outcomes; the clinic minimum holds', () => {
-  const s = finishLevel3('highland'); const cap = s.water.capacityCans;
-  const def = W.defaultAllocation(cap);
-  assert.equal(Object.values(def).reduce((a, v) => a + v, 0), cap);
-  const lowHomes = { ...def, homes: def.homes - 40, garden: def.garden + 40 };
+test('P4-10 sharing the water changes service outcomes', () => {
+  const s = finishLevel3('highland'); const def = W.defaultAllocation(s);
+  assert.ok(W.sum(def) <= s.water.capacityCans);
+  const lowHomes = { ...def, homes: Math.floor(def.homes / 3) };
   assert.ok(W.outcome(s, lowHomes).homesHouseholds < W.outcome(s, def).homesHouseholds);
-  assert.equal(W.setAllocation(s, { ...def, clinic: 0, homes: def.homes + def.clinic }).ok, false, 'clinic minimum enforced');
-  assert.equal(W.setAllocation(s, { ...def, homes: def.homes + 5 }).ok, false, 'must add up to capacity');
   let a = play(s, (x) => W.setAllocation(x, lowHomes)); let b = play(s, (x) => W.setAllocation(x, def));
   for (let i = 0; i < 30; i++) { a = W.step(a).state; b = W.step(b).state; }
-  assert.ok(W.residents(a).project <= W.residents(b).project, 'less water for homes caps household access');
-  const starved = { homes: cap - W.clinicMin(cap), school: 0, clinic: W.clinicMin(cap), garden: 0 };
-  assert.equal(W.outcome(s, starved).sectors.school.status, 'short');
+  assert.ok(W.residents(a).project < W.residents(b).project, 'less water for homes caps household access');
+  assert.equal(W.outcome(s, { ...def, school: 0 }).sectors.school.status, 'short');
 });
 
 test('P4 committee options: extension reaches far homes; reliability verifies faster with more water', () => {
-  const base = play(finishLevel3('wetland'), (x) => W.setAllocation(x, W.defaultAllocation(x.water.capacityCans)));
+  const base = play(finishLevel3('wetland'), (x) => W.setAllocation(x, W.defaultAllocation(x)));
   let ext = play(base, (x) => W.decide(x, 'extend')); let rel = play(base, (x) => W.decide(x, 'reliability'));
   assert.equal(W.decide(ext, 'reliability').ok, false, 'one decision');
   assert.ok(rel.water.capacityCans > base.water.capacityCans, 'reliability adds daily water');
-  assert.equal(Object.values(rel.water.allocation).reduce((a, v) => a + v, 0), rel.water.capacityCans, 'allocation still adds up');
+  assert.deepEqual(rel.water.allocation, base.water.allocation, 'more supply is never poured into a sector silently');
+  assert.ok(W.budget(rel, rel.water.allocation).remaining > W.budget(base, base.water.allocation).remaining, 'it shows up as unused water');
   for (let i = 0; i < 40; i++) { ext = W.step(ext).state; rel = W.step(rel).state; }
   assert.equal(ext.water.far, 0, 'extension reaches the far homes'); assert.ok(rel.water.far > 0, 'without it they keep walking');
   accounted(ext); accounted(rel);
@@ -727,7 +724,7 @@ test('P4-11/12 Level 4 completes in every scenario and unlocks Level 5', () => {
     s = W.step(W.step(s).state).state; // first households verified
     assert.equal(sim.nextObjective(s).id, 'review');
     s = sim.setFlag(s, 'populationPanelSeen');
-    s = play(s, (x) => W.setAllocation(x, W.defaultAllocation(x.water.capacityCans)));
+    s = play(s, (x) => W.setAllocation(x, W.defaultAllocation(x)));
     assert.equal(W.runWeek(s, 0).ok, false, 'meet the committee first');
     s = play(s, (x) => W.decide(x, 'extend'));
     s = play(s, (x) => W.runWeek(x, 0)); s = play(s, (x) => W.runWeek(x, 0));
@@ -737,4 +734,103 @@ test('P4-11/12 Level 4 completes in every scenario and unlocks Level 5', () => {
     accounted(s);
     assert.deepEqual(sim.deserialize(sim.serialize(s)), s);
   }
+});
+
+/* ---- Sharing the water: one slider, one sector, one shared pool ---------------------------- */
+function sharingVillage(id = 'plateau', supplyFactor) {
+  let s = finishLevel3(id);
+  if (supplyFactor) s.water.capacityCans = Math.round(W.sum(W.needs(s)) * supplyFactor); // force scarcity
+  return s;
+}
+const cap = (s) => s.water.capacityCans;
+const other = (d, id) => Object.fromEntries(Object.entries(d).filter(([k]) => k !== id));
+
+for (const id of ['homes', 'school', 'clinic', 'garden']) {
+  test(`A${['homes', 'school', 'clinic', 'garden'].indexOf(id) + 1} moving ${id} does not change any other allocation`, () => {
+    const s = sharingVillage('plateau', 0.8); const d0 = W.defaultAllocation(s, cap(s));
+    for (const v of [0, 1, 5, Math.floor(W.needs(s)[id] / 2), W.needs(s)[id], 99999, -50]) {
+      const d1 = W.setDraftValue(s, d0, id, v, cap(s));
+      assert.deepEqual(other(d1, id), other(d0, id), `${id} → ${v}`);
+    }
+  });
+}
+
+test('A5/A6 a slider stops at the remaining water; lowering it returns water to the pool', () => {
+  const s = sharingVillage('highland', 0.7); const c = cap(s);
+  let d = { homes: 0, school: 0, clinic: 0, garden: 0 };
+  d = W.setDraftValue(s, d, 'homes', 99999, c);
+  assert.equal(d.homes, Math.min(W.needs(s).homes, c));
+  const left = c - W.sum(d);
+  d = W.setDraftValue(s, d, 'school', 99999, c);
+  assert.equal(d.school, Math.min(W.needs(s).school, left), 'school stops at what is left');
+  if (W.budget(s, d, c).remaining === 0) { const d2 = W.setDraftValue(s, d, 'garden', 10, c); assert.equal(d2.garden, 0, 'nothing left: the slider cannot move up'); }
+  const homesBefore = d.homes; d = W.setDraftValue(s, d, 'homes', homesBefore - 20, c);
+  assert.equal(W.budget(s, d, c).remaining >= 20, true, 'reducing homes frees 20 cans');
+  d = W.setDraftValue(s, d, 'garden', 20, c); assert.equal(d.garden, Math.min(20, W.needs(s).garden));
+});
+
+test('A7–A10 unused water allowed; never negative, never above demand, never above supply', () => {
+  for (const id of SCENARIOS) for (const f of [0.5, 1, 3]) {
+    const s = sharingVillage(id, f); const c = cap(s); const need = W.needs(s);
+    const empty = { homes: 0, school: 0, clinic: W.clinicMin(s), garden: 0 };
+    assert.equal(W.setAllocation(s, empty).ok, true, 'a plan with unused water is fine');
+    let d = W.defaultAllocation(s, c); const r = sim.rng(42);
+    for (let i = 0; i < 400; i++) {
+      const k = ['homes', 'school', 'clinic', 'garden'][Math.floor(r() * 4)];
+      d = W.setDraftValue(s, d, k, Math.round((r() * 2 - 0.5) * need[k] * 1.5), c);
+      for (const x of Object.keys(d)) { assert.ok(d[x] >= 0); assert.ok(d[x] <= need[x]); }
+      assert.ok(W.sum(d) <= c, `${id}×${f}: never above supply`);
+    }
+    assert.equal(W.setAllocation(s, { ...d, homes: need.homes + 1 }).ok, false, 'above demand rejected');
+    assert.equal(W.setAllocation(s, { ...d, school: -1 }).ok, false, 'negative rejected');
+  }
+});
+
+test('A11/A12 cancel keeps the confirmed plan; apply commits exactly the draft', () => {
+  let s = sharingVillage('wetland'); const confirmed = { ...s.water.allocation };
+  const draft = W.setDraftValue(s, confirmed, 'garden', 0); // editing never touches state
+  assert.deepEqual(s.water.allocation, confirmed, 'a draft is not the plan');
+  const applied = play(s, (x) => W.setAllocation(x, draft));
+  assert.deepEqual(applied.water.allocation, draft); assert.deepEqual(s.water.allocation, confirmed, 'input state untouched');
+  assert.equal(applied.water.allocationSet, true);
+});
+
+test('A13 clinic safeguard: explicit override needed, never a hidden redistribution', () => {
+  const s = sharingVillage('highland'); const d = { ...W.defaultAllocation(s), clinic: W.clinicMin(s) - 1 };
+  const r = W.setAllocation(s, d);
+  assert.equal(r.ok, false); assert.equal(r.needsOverride, true); assert.match(r.reason, /clinic/i);
+  assert.deepEqual(r.state.water.allocation, s.water.allocation, 'nothing moved');
+  const ok = play(s, (x) => W.setAllocation(x, d, { overrideClinic: true }));
+  assert.deepEqual(ok.water.allocation, d, 'the override keeps the player’s numbers'); assert.equal(ok.water.clinicOverride, true);
+  assert.ok(W.outcome(s, d).clinicLow);
+});
+
+test('A14 save and continue keep the plan; old forced-to-supply plans migrate to absolute, in-demand values', () => {
+  const s = play(sharingVillage('plateau'), (x) => W.setAllocation(x, W.setDraftValue(x, W.setDraftValue(x, W.defaultAllocation(x), 'homes', 300), 'garden', 9)));
+  assert.deepEqual(sim.deserialize(sim.serialize(s)).water.allocation, s.water.allocation);
+  const old = JSON.parse(sim.serialize(s)); delete old.water.allocVersion;
+  // Shape of a genuine first-build save: sums exactly to supply, sectors above their demand.
+  const need = W.needs(s); const c = s.water.capacityCans;
+  old.water.allocation = { school: need.school + 20, clinic: need.clinic + 10, garden: need.garden + 15 };
+  old.water.allocation.homes = c - old.water.allocation.school - old.water.allocation.clinic - old.water.allocation.garden;
+  const m = sim.deserialize(JSON.stringify(old));
+  for (const k of Object.keys(need)) assert.ok(m.water.allocation[k] <= need[k], `${k} clamped to demand`);
+  assert.equal(m.water.allocation.homes, Math.min(need.homes, old.water.allocation.homes)); assert.equal(m.water.allocVersion, 2);
+  assert.ok(W.validate(m, m.water.allocation).valid);
+  assert.equal(m.level, s.level); assert.deepEqual(m.water.hh, s.water.hh, 'unrelated village state unchanged');
+});
+
+test('A15 a supply drop never leaves an unreported invalid plan, and never moves the sliders', () => {
+  let s = play(sharingVillage('wetland'), (x) => W.setAllocation(x, W.defaultAllocation(x)));
+  const plan = { ...s.water.allocation };
+  assert.equal(W.needsReview(s), false);
+  s.water.supplyFactor = 0.4; // a breakdown: the point gives 40% of its water
+  assert.equal(W.needsReview(s), true, 'the plan is flagged for review');
+  assert.deepEqual(s.water.allocation, plan, 'the stored plan is untouched');
+  const eff = W.effectiveAllocation(s);
+  assert.ok(W.sum(eff) <= W.capacityCans(s), 'the simulation never uses more than the supply');
+  assert.equal(eff.clinic, plan.clinic, 'the clinic is cut last');
+  assert.ok(W.step(s).ok);
+  assert.equal(W.setAllocation(s, plan).ok, false, 'an over-supply plan cannot be confirmed as valid');
+  s.water.supplyFactor = 1; assert.equal(W.needsReview(s), false, 'review clears when supply returns');
 });

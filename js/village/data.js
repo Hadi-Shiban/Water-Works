@@ -385,7 +385,7 @@
       sectors: [
         { id: 'homes', name: 'Homes', icon: 'home', share: 0.72, note: 'Drinking, cooking and washing at home.' },
         { id: 'school', name: 'School', icon: 'school', share: 0.1, needPerPerson: 0.06, note: 'Drinking water and handwashing for pupils.' },
-        { id: 'clinic', name: 'Clinic', icon: 'clinic', share: 0.08, needPerPerson: 0.04, critical: true, minShare: 0.06, note: 'Critical: clean water for care and hygiene.' },
+        { id: 'clinic', name: 'Clinic', icon: 'clinic', share: 0.08, needPerPerson: 0.04, critical: true, minShareOfNeed: 0.8, note: 'Critical: clean water for care and hygiene.' },
         { id: 'garden', name: 'Gardens', icon: 'leaf', share: 0.1, needPerPerson: 0.08, note: 'Watering the community gardens.' },
       ],
     },
