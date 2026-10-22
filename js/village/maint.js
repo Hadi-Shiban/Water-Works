@@ -17,7 +17,8 @@
   const clone = (o) => JSON.parse(JSON.stringify(o));
   const fail = (s, reason) => ({ ok: false, state: s, reason });
 
-  const def = (s) => (s.tech ? D().maintenance[s.tech] : null);
+  // Repair cost scales with difficulty, like every other build.
+  const def = (s) => { const d = s.tech ? D().maintenance[s.tech] : null; return d && { ...d, cost: WV.sim.scaleCost(s, d.cost) }; };
 
   /* Begin the Level 5 problem (in place). Safe to call twice. */
   function start(s) {

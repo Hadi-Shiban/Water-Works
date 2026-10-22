@@ -9,7 +9,7 @@ require('../js/village/data.js');
 require('../js/village/sim.js');
 require('../js/village/water.js');
 require('../js/village/maint.js');
-const { data: D, sim } = globalThis.WV;
+const { data: D, sim } = globalThis.WV; const WV = globalThis.WV;
 const SCENARIOS = Object.keys(D.scenarios);
 
 const village = (name, salt, sc) => sim.generateVillage(name, salt, sc);
@@ -979,4 +979,43 @@ test('P5 a new village starts fresh', () => {
   const v = village('Fresh Start', 77);
   assert.equal(v.level, 1); assert.equal(v.maint, undefined); assert.equal(v.flags.campaignComplete, undefined);
   assert.equal(v.flags.projectComplete, undefined); assert.equal(v.tech, null); assert.equal(v.water.active, false);
+});
+
+/* ---- Difficulty modes and milestones ---------------------------------------------- */
+test('difficulty modes change taps, costs, goals and regrowth', () => {
+  const easy = sim.generateVillage('Kesi Hill', 3, 'highland', 'easy');
+  const normal = sim.generateVillage('Kesi Hill', 3, 'highland', 'normal');
+  const hard = sim.generateVillage('Kesi Hill', 3, 'highland', 'hard');
+  assert.equal(sim.generateVillage('Kesi Hill', 3, 'highland').difficulty, 'normal', 'default is normal');
+  assert.deepEqual([easy, normal, hard].map(sim.hitsToBreak), [2, 3, 4]);
+  assert.deepEqual(sim.buildDef(normal, 'lab').cost, D.builds.lab.cost, 'normal keeps the original cost');
+  assert.ok(sim.buildDef(easy, 'lab').cost.wood < sim.buildDef(normal, 'lab').cost.wood);
+  assert.ok(sim.buildDef(hard, 'lab').cost.wood > sim.buildDef(normal, 'lab').cost.wood);
+  assert.ok(sim.regrowMs(easy) < sim.regrowMs(normal) && sim.regrowMs(normal) < sim.regrowMs(hard));
+  for (const v of [easy, normal, hard]) {
+    const goal = sim.gatherGoal(v); const lab = sim.buildDef(v, 'lab').cost;
+    assert.ok(goal.wood >= lab.wood && goal.stone >= lab.stone, `${v.difficulty}: the gathering goal pays for the lab`);
+  }
+  // Breaking a spot takes exactly hitsToBreak taps on every mode.
+  for (const v of [easy, normal, hard]) {
+    const node = sim.sceneOf(v).hotspots.find((h) => h.kind === 'node').id;
+    let hits = 0; let r;
+    for (let i = 0; i < sim.hitsToBreak(v); i++) { r = sim.strike(v, node, hits, 0); hits = r.hits; }
+    assert.ok(r.done, v.difficulty);
+  }
+  const bad = sim.deserialize(JSON.stringify({ ...normal, difficulty: 'impossible' }));
+  assert.equal(bad.difficulty, 'normal', 'an unknown difficulty loads as normal');
+});
+
+test('milestones fire once each as reliable water passes each threshold', () => {
+  let s = sim.generateVillage('Kesi Hill', 3, 'highland');
+  assert.equal(sim.checkMilestones(s).reached.length, 0);
+  const fake = (pct) => { const t = sim.clone(s); t.population = 100; t.water = t.water || {}; return t; };
+  const orig = WV.water.residents;
+  try {
+    WV.water.residents = () => ({ reliable: 55, project: 55, trying: 0 });
+    const r1 = sim.checkMilestones(fake());
+    assert.deepEqual(r1.reached.map((m) => m.pct), [10, 25, 50]);
+    assert.equal(sim.checkMilestones(r1.state).reached.length, 0, 'not shown twice');
+  } finally { WV.water.residents = orig; }
 });

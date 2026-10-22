@@ -9,7 +9,7 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 7.5h12v13a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 20.5z' fill='%23f2c118' stroke='%236a4f00'/%3E%3Cpath d='M8 7.5c0-3 3-4.5 5-4.5M13.5 3h3v4.5' fill='none' stroke='%236a4f00' stroke-width='1.6'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500&display=swap">
   <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/village.css">
 </head>
@@ -64,6 +64,15 @@
       </div>
       <p id="nameHint" class="hint">A fictional name. The landscape is chosen for you.</p>
       <p id="nameError" class="error" role="alert"></p>
+      <fieldset class="difficulty" aria-describedby="diffHint">
+        <legend>Difficulty</legend>
+        <div class="diff-row">
+          <label class="diff-opt"><input type="radio" name="difficulty" value="easy"><span><b>Easy</b><small>2 taps to gather, cheaper builds, fast regrowth</small></span></label>
+          <label class="diff-opt"><input type="radio" name="difficulty" value="normal" checked><span><b>Normal</b><small>3 taps to gather, standard costs</small></span></label>
+          <label class="diff-opt"><input type="radio" name="difficulty" value="hard"><span><b>Hard</b><small>4 taps to gather, costly builds, slow regrowth</small></span></label>
+        </div>
+        <p id="diffHint" class="hint">Difficulty changes how much wood and stone you need, how hard spots are to gather, and how fast they grow back.</p>
+      </fieldset>
       <div class="start-actions">
         <button type="submit" class="btn primary big">Found the village</button>
         <button type="button" class="btn ghost" data-act="cancel-name">Back</button>
@@ -72,6 +81,13 @@
 
     <p id="disclaimerStart" class="disclaimer"></p>
   </div>
+  <footer class="cw-footer start-footer">
+    <span>Inspired by charity: water. 703 million people still lack clean water.</span>
+    <nav aria-label="charity: water links">
+      <a href="https://www.charitywater.org/" target="_blank" rel="noopener">Visit charity: water</a>
+      <a href="https://www.charitywater.org/donate" target="_blank" rel="noopener" class="donate">Donate</a>
+    </nav>
+  </footer>
 </section>
 
 <!-- GAME -->
@@ -88,7 +104,12 @@
   <aside id="sheet" class="hud-card sheet" aria-labelledby="sheetTitle" hidden></aside>
   <div id="guide" class="hud-card guide" role="note" hidden></div>
   <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
-  <p class="footnote">A student collaboration with charity: water</p>
+  <div id="milestones" class="milestones" role="status" aria-live="polite"></div>
+  <footer class="cw-footer footnote">
+    <span>A student collaboration with charity: water</span>
+    <a href="https://www.charitywater.org/" target="_blank" rel="noopener">charitywater.org</a>
+    <a href="https://www.charitywater.org/donate" target="_blank" rel="noopener" class="donate">Donate</a>
+  </footer>
 </main>
 
 <dialog id="dlg" class="dlg" aria-labelledby="dlgTitle"></dialog>
@@ -100,6 +121,7 @@
 <script src="js/village/water.js"></script>
 <script src="js/village/maint.js"></script>
 <script src="js/village/audio.js"></script>
+<script src="js/village/sfx.js"></script>
 <script src="js/village/scene.js"></script>
 <script src="js/village/dev.js"></script>
 <script src="js/village/ui.js"></script>

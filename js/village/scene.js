@@ -505,7 +505,7 @@
       b.classList.toggle('empty', left <= 0 && !b.classList.contains('breaking'));
       b.classList.toggle('target', targets.indexOf(h.id) >= 0);
       b.disabled = left <= 0 && !b.classList.contains('breaking');
-      const hits = (ui.hits && ui.hits[h.id]) || 0; const need = WV.sim.HITS_TO_BREAK;
+      const hits = (ui.hits && ui.hits[h.id]) || 0; const need = WV.sim.hitsToBreak(s);
       if (!b.classList.contains('breaking')) setHits(b, hits);
       const r = D().resources[h.res];
       b.classList.toggle('regrowing', left < h.charges);
@@ -527,7 +527,7 @@
   const nodeBtn = (id) => els.hs && els.hs.querySelector(`.node[data-id="${id}"]`);
   function setHits(b, n) {
     b.dataset.hits = String(n);
-    b.querySelector('.hitcount').textContent = n > 0 ? `${n}/${WV.sim.HITS_TO_BREAK}` : '';
+    b.querySelector('.hitcount').textContent = n > 0 ? `${n}/${WV.sim.hitsToBreak(lastState)}` : '';
   }
   function particles(id, kind, count, spread) {
     const h = scene.hotspots.find((x) => x.id === id); if (!h || !els.fx || reduced) return;
@@ -547,7 +547,7 @@
   }
   function breakNode(id) {
     const b = nodeBtn(id); if (!b) return;
-    setHits(b, WV.sim.HITS_TO_BREAK);
+    setHits(b, WV.sim.hitsToBreak(lastState));
     b.classList.remove('shake'); b.classList.add('breaking');
     particles(id, 'burst', 12, 46);
   }

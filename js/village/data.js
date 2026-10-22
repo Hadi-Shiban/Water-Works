@@ -22,6 +22,29 @@
     disclaimer: 'Waterworks is an educational student project created in collaboration with charity: water.',
     gameplayNote: 'Populations, distances, times, rainfall, depths and amounts are simplified, fictional gameplay values.',
     learnUrl: 'https://www.charitywater.org/our-work',
+    donateUrl: 'https://www.charitywater.org/donate',
+
+    /* ---- Difficulty modes ----------------------------------------------------------
+       Chosen when the village is founded. Each mode changes the rules:
+       hits:     taps needed to break a wood or stone spot
+       costMult: multiplies every build and repair cost (and the Level 1 gathering goal)
+       regrowMult: multiplies how long a gathering spot takes to grow back            */
+    difficulties: {
+      easy: { id: 'easy', name: 'Easy', hits: 2, costMult: 0.5, regrowMult: 0.5 },
+      normal: { id: 'normal', name: 'Normal', hits: 3, costMult: 1, regrowMult: 1 },
+      hard: { id: 'hard', name: 'Hard', hits: 4, costMult: 1.5, regrowMult: 2 },
+    },
+    gatherGoal: { wood: 6, stone: 4 }, // Level 1 gathering goal on Normal
+
+    /* ---- Milestones --------------------------------------------------------------------
+       Shown once each, when the share of residents with reliable water passes `pct`.  */
+    milestones: [
+      { pct: 10, title: 'First drops!', text: 'One in ten residents now has reliable, safe water.' },
+      { pct: 25, title: 'A quarter of the way', text: 'Every family that joins gets hours back each day.' },
+      { pct: 50, title: 'Halfway there!', text: 'Half of {village} has reliable water. Keep it flowing.' },
+      { pct: 75, title: 'Three in four', text: 'Most of {village} no longer makes the long walk.' },
+      { pct: 90, title: 'Almost everyone', text: 'Nine in ten residents have reliable, safe water.' },
+    ],
     jerryCanLitres: 20, // [ref] the common yellow jerry can holds about 20 litres
     litresPerPersonGoal: 20, // [ref] a commonly used basic-access benchmark (WHO), used here as a game target
     music: { src: 'assets/audio/waterworks-ambient.mp3', defaultVolume: 0.25 },
@@ -535,8 +558,9 @@
           { id: 'committee', text: () => 'Meet the village water committee', check: (s) => !!s.flags.committeeMet },
           { id: 'source', text: () => 'Visit today’s water collection point', check: (s) => s.inspected.indexOf('source') >= 0 },
           { id: 'walk', text: () => 'Watch how families collect water today', check: (s) => !!s.flags.walkWatched },
-          { id: 'gather', text: (s) => `Gather 6 wood and 4 stone (wood ${Math.min(6, s.gathered.wood)}/6 · stone ${Math.min(4, s.gathered.stone)}/4)`, check: (s) => s.gathered.wood >= 6 && s.gathered.stone >= 4 },
-          { id: 'lab', text: () => 'Build the field-testing station (4 wood, 3 stone; needs the committee’s go-ahead)', check: (s) => s.builds.lab === 'built' },
+          { id: 'gather', text: (s) => { const g = WV.sim.gatherGoal(s); return `Gather ${g.wood} wood and ${g.stone} stone (wood ${Math.min(g.wood, s.gathered.wood)}/${g.wood} · stone ${Math.min(g.stone, s.gathered.stone)}/${g.stone})`; },
+            check: (s) => { const g = WV.sim.gatherGoal(s); return s.gathered.wood >= g.wood && s.gathered.stone >= g.stone; } },
+          { id: 'lab', text: (s) => { const c = WV.sim.buildDef(s, 'lab').cost; return `Build the field-testing station (${c.wood} wood, ${c.stone} stone; needs the committee’s go-ahead)`; }, check: (s) => s.builds.lab === 'built' },
         ] },
       { id: 2, title: 'Investigate the Water', next: 'Build the Solution',
         objectives: [

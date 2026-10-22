@@ -7,7 +7,7 @@
    ========================================================================== */
 (function (root) {
   'use strict';
-  const WV = root.WV; const D = WV.data; const sim = WV.sim; const U = WV.ui; const scene = WV.scene; const audio = WV.audio;
+  const WV = root.WV; const D = WV.data; const sim = WV.sim; const U = WV.ui; const scene = WV.scene; const audio = WV.audio; const sfx = WV.sfx;
   const SAVE_KEY = 'waterworks-village-v1';
   const PREF_KEY = 'waterworks-village-prefs-v1';
   const $ = (id) => document.getElementById(id);
@@ -38,6 +38,26 @@
     while ($('toasts').children.length > 2) $('toasts').firstChild.remove();
   }
 
+  /* A "not yet" message with an error sound. */
+  function nope(body, title) { sfx.play('error'); toast(title || 'Not yet', body); }
+
+  /* ---- Milestones: a banner slides in when the village passes a key share of residents
+     with reliable water (thresholds and messages live in WV.data.milestones). ---------- */
+  function showMilestone(m) {
+    const box = $('milestones'); if (!box) return;
+    const el = document.createElement('div'); el.className = 'milestone';
+    el.innerHTML = `<span class="ms-pct">${m.pct}%</span><span><b>${U.esc(m.title)}</b><span>${U.fill(m.text, s)}</span></span>`;
+    box.appendChild(el);
+    sfx.play('milestone');
+    announce(`Milestone: ${m.title}`);
+    setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 400); }, 4500);
+  }
+  function checkMilestones() {
+    const r = sim.checkMilestones(s); if (!r.reached.length) return;
+    s = r.state; persist();
+    showMilestone(r.reached[r.reached.length - 1]); // if several at once (an old save), show the biggest
+  }
+
   /* ---- Targets: what the next objective points at ------------------------------------- */
   function targetsFor(st) {
     const o = sim.nextObjective(st); if (!o) return [];
@@ -47,7 +67,7 @@
       case 'committee': return ['committee'];
       case 'source': case 'walk': return ['source'];
       case 'gather': {
-        const need = { wood: st.gathered.wood < 6, stone: st.gathered.stone < 4 };
+        const goal = sim.gatherGoal(st); const need = { wood: st.gathered.wood < goal.wood, stone: st.gathered.stone < goal.stone };
         return sc.hotspots.filter((h) => h.kind === 'node' && need[h.res] && st.nodes[h.id].charges > 0).map((h) => h.id);
       }
       case 'lab': return st.flags.committeeMet ? ['lab'] : ['committee'];
@@ -58,7 +78,7 @@
       case 'diagnose': case 'repair': return ['issue'];
       case 'review': return [];
       case 'materials': {
-        const need = D.technologies[st.tech].cost;
+        const need = sim.buildDef(st, 'waterPoint').cost;
         const short = { wood: st.resources.wood < need.wood, stone: st.resources.stone < need.stone };
         return sc.hotspots.filter((h) => h.kind === 'node' && short[h.res] && st.nodes[h.id].charges > 0).map((h) => h.id);
       }
@@ -91,7 +111,7 @@
       if (el && el !== document.activeElement) el.focus({ preventScroll: true });
     }
   }
-  function commit(next) { s = next; persist(); render(); maybeCompleteLevel(); }
+  function commit(next) { s = next; persist(); render(); checkMilestones(); maybeCompleteLevel(); }
 
   /* ---- Dialog (single element, focus returns to the opener) ------------------------------- */
   let dlgReturn = null; let dlgOnClose = null;
@@ -133,7 +153,8 @@
   }
   function createVillage(name) {
     if (!sim.validName(name)) { $('nameError').textContent = 'Please use at least two letters.'; $('villageName').focus(); return; }
-    s = sim.generateVillage(name, randomSalt(), urlScenario);
+    const pick = document.querySelector('input[name="difficulty"]:checked');
+    s = sim.generateVillage(name, randomSalt(), urlScenario, pick ? pick.value : 'normal');
     ui.selected = null; ui.levelShown = false;
     persist();
     enterGame();
@@ -170,16 +191,18 @@
   function gather(id) {
     if (ui.breaking[id]) return;
     const r = sim.strike(s, id, ui.hits[id] || 0, Date.now());
-    if (!r.ok) { toast('Growing back', r.reason); return; }
+    if (!r.ok) { nope(r.reason, 'Growing back'); return; }
     const res = D.resources[r.res];
     if (!r.done) {
       ui.hits[id] = r.hits;
       scene.hitNode(id, r.hits);
-      announce(`${res.name}: ${r.hits} of ${sim.HITS_TO_BREAK}.`);
+      sfx.play('tap');
+      announce(`${res.name}: ${r.hits} of ${sim.hitsToBreak(s)}.`);
       return;
     }
     ui.breaking[id] = true; ui.hits[id] = 0;
     scene.breakNode(id);
+    sfx.play('collect');
     scene.floatText(id, `+${r.amount} ${res.name}`);
     commit(r.state);
     const v = document.querySelector(`.stat .v[data-res="${r.res}"]`);
@@ -208,13 +231,14 @@
 
   function build(id) {
     const r = sim.startBuild(s, id);
-    if (!r.ok) { toast('Not yet', U.esc(r.reason)); announce(r.reason); return; }
+    if (!r.ok) { nope(U.esc(r.reason)); announce(r.reason); return; }
     commit(r.state);
     const b = sim.buildDef(s, id);
     announce(`${s.people[b.builder].name} starts building the ${b.name.toLowerCase()}.`);
     setTimeout(() => {
       const f = sim.finishBuild(s, id); if (!f.ok) return;
       scene.celebrate(id);
+      sfx.play('build');
       commit(f.state);
       toast(`${b.name} built`, id === 'lab' ? 'The partner team can now test water samples here.' : 'Open the site to bring the system to life.', 'good');
       announce(`${b.name} built.`);
@@ -224,10 +248,10 @@
   function maybeCompleteLevel() {
     if (!s || ui.levelShown || !sim.levelReady(s)) return;
     ui.levelShown = true;
-    setTimeout(() => openDialog(U.levelComplete(s), s.level === 5 ? 'dlg-wide dlg-finale modal-strict' : 'dlg-wide modal-strict', () => {
+    setTimeout(() => { sfx.play('win'); openDialog(U.levelComplete(s), s.level === 5 ? 'dlg-wide dlg-finale modal-strict' : 'dlg-wide modal-strict', () => {
       const r = sim.completeLevel(s); ui.levelShown = false;
       if (r.ok) { ui.selected = null; commit(r.state); ui.checklistOpen = true; render(); }
-    }), prefs.reducedMotion ? 200 : s.level === 3 ? 3800 : s.level === 5 ? 500 : 1100); // Level 3: let the village change sink in first
+    }); }, prefs.reducedMotion ? 200 : s.level === 3 ? 3800 : s.level === 5 ? 500 : 1100); // Level 3: let the village change sink in first
   }
 
   function openMenu() { openDialog(U.menu(s, audio.state(), prefs), 'dlg-narrow'); }
@@ -260,7 +284,7 @@
     }
   }
   function openLab() {
-    const r = sim.openLab(s); if (!r.ok) { toast('Not yet', U.esc(r.reason)); return; }
+    const r = sim.openLab(s); if (!r.ok) { nope(U.esc(r.reason)); return; }
     const first = r.state !== s;
     if (first) { commit(r.state); toast('Sample delivered', 'The field lab is open.', 'good'); }
     ui.labItem = null; showLab();
@@ -276,7 +300,7 @@
     ui.labBusy = kind; showLab();
     setTimeout(() => {
       ui.labBusy = null; const r = fn();
-      if (!r.ok) { toast('Not yet', U.esc(r.reason)); showLab(); return; }
+      if (!r.ok) { nope(U.esc(r.reason)); showLab(); return; }
       commit(r.state); showLab(true); if (done) done(r);
     }, prefs.reducedMotion ? 250 : 1800);
   }
@@ -284,11 +308,11 @@
   function labGuess(pred) { labRun('clear', () => sim.inspectJar(s, 'clear', pred), (r) => announce(`Clear sample: germ test ${germLabel(r)}.${r.result.salty ? ' Salty.' : ''}`)); }
   function labTest() { labRun('dirty', () => sim.inspectJar(s, 'dirty'), (r) => announce(`Cloudy sample: germ test ${germLabel(r)}.`)); }
   function labStep(id) {
-    if (id === 'microscope') { const r = sim.useMicroscope(s); if (!r.ok) { toast('Not yet', U.esc(r.reason)); return; } commit(r.state); ui.labItem = 'filter'; showLab(true); return; }
+    if (id === 'microscope') { const r = sim.useMicroscope(s); if (!r.ok) { nope(U.esc(r.reason)); return; } commit(r.state); ui.labItem = 'filter'; showLab(true); return; }
     if (id === 'filter') labRun('filter', () => sim.runFilter(s), () => announce('Filtered: clearer, but germs remain.'));
   }
   function labNotes() {
-    const r = sim.reviewNotes(s); if (!r.ok) { toast('Not yet', U.esc(r.reason)); return; }
+    const r = sim.reviewNotes(s); if (!r.ok) { nope(U.esc(r.reason)); return; }
     if (r.state !== s) commit(r.state);
     openOptions();
   }
@@ -298,7 +322,7 @@
   }
   /* ---- Level 3: plan, choose, activate ----------------------------------------------------- */
   function planMeeting() {
-    const r = sim.planMeeting(s); if (!r.ok) { toast('Not yet', U.esc(r.reason)); return; }
+    const r = sim.planMeeting(s); if (!r.ok) { nope(U.esc(r.reason)); return; }
     if (r.state !== s) commit(r.state);
     if (s.tech) { openTech(); return; }
     openDialog(U.planning(s), 'dlg-wide');
@@ -318,16 +342,17 @@
     if (ui.activating) return;
     const next = sim.nextActivation(s); if (!next) return;
     if (next.reps && (ui.pumpCount || 0) < next.reps - 1) {
-      ui.pumpCount = (ui.pumpCount || 0) + 1; scene.systemFx('pump'); render();
+      ui.pumpCount = (ui.pumpCount || 0) + 1; scene.systemFx('pump'); sfx.play('drop'); render();
       announce(`Stroke ${ui.pumpCount} of ${next.reps}.`); return;
     }
     ui.activating = true; if (next.effect) scene.systemFx(next.effect); render();
     setTimeout(() => {
       ui.activating = false; ui.pumpCount = 0;
       const r = sim.activate(s, next.id, Date.now());
-      if (!r.ok) { toast('Not yet', U.esc(r.reason)); render(); return; }
+      if (!r.ok) { nope(U.esc(r.reason)); render(); return; }
       commit(r.state);
       announce(next.done);
+      sfx.play(r.done ? 'build' : 'drop');
       if (r.done) { scene.celebrate('waterPoint'); toast('Water is flowing!', `Capacity for about ${s.water.capacityCans} jerry cans a day. Watch families start to use it.`, 'good'); }
     }, prefs.reducedMotion ? 250 : next.effect === 'flow' ? 2900 : next.effect === 'rain' ? 2200 : 1100);
   }
@@ -373,7 +398,7 @@
     toast('Sharing confirmed', 'The committee will post the schedule at the water point.', 'good');
   }
   function decide(id) {
-    const r = WV.water.decide(s, id); if (!r.ok) { toast('Not yet', U.esc(r.reason)); return; }
+    const r = WV.water.decide(s, id); if (!r.ok) { nope(U.esc(r.reason)); return; }
     closeDialog(); commit(r.state);
     toast(`The committee chose: ${D.decisions[id].name}`, 'Open the water point and run the next week to see the results.', 'good');
   }
@@ -382,7 +407,7 @@
     ui.running = true; render();
     setTimeout(() => {
       ui.running = false;
-      const r = WV.water.runWeek(s, Date.now()); if (!r.ok) { toast('Not yet', U.esc(r.reason)); render(); return; }
+      const r = WV.water.runWeek(s, Date.now()); if (!r.ok) { nope(U.esc(r.reason)); render(); return; }
       commit(r.state);
       const res = WV.water.residents(s);
       toast(`Week ${s.water.weeksRun}`, `${res.project} residents now verified at the water point; ${res.trying} more are trying it.`, 'good');
@@ -392,13 +417,14 @@
 
   /* ---- Level 5: inspect, diagnose, repair, review ------------------------------------------- */
   function maintInspect() {
-    const r = WV.maint.inspect(s); if (!r.ok) { toast('Not yet', U.esc(r.reason)); return; }
+    const r = WV.maint.inspect(s); if (!r.ok) { nope(U.esc(r.reason)); return; }
     commit(r.state); announce('Problem found. The problem spot is marked on the map.');
   }
   function gotoIssue() { ui.selected = null; render(); setTimeout(() => inspect('issue'), 0); }
   function maintDiagnose(id) {
-    const r = WV.maint.diagnose(s, id); if (!r.ok) { toast('Not yet', U.esc(r.reason)); return; }
+    const r = WV.maint.diagnose(s, id); if (!r.ok) { nope(U.esc(r.reason)); return; }
     commit(r.state);
+    sfx.play(r.correct ? 'collect' : 'error');
     if (r.correct) toast('Diagnosis confirmed', `${U.esc(s.people.caretaker.name)} agrees. Time to fix it.`, 'good');
     announce(r.correct ? 'Correct. Now carry out the repair.' : `Not quite. ${r.why}`);
   }
@@ -409,7 +435,7 @@
     setTimeout(() => {
       ui.repairing = false;
       const r = WV.maint.repairStep(s, next.id);
-      if (!r.ok) { toast('Not yet', U.esc(r.reason)); render(); return; }
+      if (!r.ok) { nope(U.esc(r.reason)); render(); return; }
       commit(r.state); announce(next.done);
       if (r.done) {
         scene.celebrate('waterPoint'); ui.selected = null; render();
@@ -419,17 +445,17 @@
   }
   function openReview() { openDialog(U.review(s), 'dlg-wide dlg-review'); }
   function choosePriority(id) {
-    const r = WV.maint.choosePriority(s, id); if (!r.ok) { toast('Not yet', U.esc(r.reason)); return; }
+    const r = WV.maint.choosePriority(s, id); if (!r.ok) { nope(U.esc(r.reason)); return; }
     s = r.state; persist(); refreshDialog(U.review(s), 'dlg-wide dlg-review');
   }
   function completeProject() {
-    const r = WV.maint.completeProject(s); if (!r.ok) { refreshDialog(U.review(s), 'dlg-wide dlg-review'); toast('Not yet', U.esc(r.reason)); return; }
+    const r = WV.maint.completeProject(s); if (!r.ok) { refreshDialog(U.review(s), 'dlg-wide dlg-review'); nope(U.esc(r.reason)); return; }
     closeDialog(); commit(r.state);
   }
 
   function collectSample(id) {
-    const r = sim.collectSample(s, id); if (!r.ok) { toast('Not now', U.esc(r.reason)); return; }
-    scene.floatText(id, '+1 water sample');
+    const r = sim.collectSample(s, id); if (!r.ok) { nope(U.esc(r.reason)); return; }
+    scene.floatText(id, '+1 water sample'); sfx.play('drop');
     commit(r.state);
     toast('Sample collected', 'Carry it to the field-testing station.', 'good');
     announce('Water sample collected. Bring it to the field-testing station.');
@@ -449,7 +475,7 @@
   }
   function openOptions() { refreshDialog(U.options(s), 'dlg-wide dlg-options'); }
   function optionsAgree() {
-    const r = sim.reviewOptions(s); if (!r.ok) { toast('Not yet', U.esc(r.reason)); return; }
+    const r = sim.reviewOptions(s); if (!r.ok) { nope(U.esc(r.reason)); return; }
     closeDialog(); ui.labItem = null; commit(r.state);
     toast('Recommendation shared', 'The committee will make the final choice when building starts.', 'good');
   }
@@ -529,6 +555,7 @@
   document.addEventListener('change', (e) => {
     const el = e.target; const a = el.dataset && el.dataset.act; if (!a) return;
     if (a === 'set-mute') audio.setMuted(!el.checked);
+    else if (a === 'set-sfx') { sfx.setOn(el.checked); sfx.play('collect'); }
     else if (a === 'set-motion') { prefs.reducedMotion = el.checked; savePrefs(); applyMotion(); }
     else if (a === 'set-tips' && s) commit(sim.setFlag(s, 'tipsOff', !el.checked));
     else if (a === 'alloc-override') ui.allocOverride = el.checked;

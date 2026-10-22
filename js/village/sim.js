@@ -44,10 +44,22 @@
     return p.start[Math.floor(rand() * p.start.length)] + p.end[Math.floor(rand() * p.end.length)];
   }
 
+  /* ---- Difficulty ------------------------------------------------------------------
+     Every rule that difficulty changes goes through these helpers.                  */
+  const difficulty = (s) => D().difficulties[(s && s.difficulty) || 'normal'] || D().difficulties.normal;
+  const scaleCost = (s, cost) => {
+    const m = difficulty(s).costMult; const out = {};
+    Object.keys(cost).forEach((k) => (out[k] = cost[k] > 0 ? Math.max(1, Math.ceil(cost[k] * m)) : 0));
+    return out;
+  };
+  const gatherGoal = (s) => scaleCost(s, D().gatherGoal);
+  const hitsToBreak = (s) => difficulty(s).hits;
+  const regrowMs = (s) => Math.round(D().regrowMs * difficulty(s).regrowMult);
+
   /* ---- Village generation ----------------------------------------------------------
      seed = hash(name) XOR salt. The salt is stored, so the same save always rebuilds
      the same village; a new village with the same name gets a fresh salt.          */
-  function generateVillage(name, salt, forcedScenario) {
+  function generateVillage(name, salt, forcedScenario, difficultyId) {
     const data = D();
     const clean = cleanName(name);
     if (clean.length < 2) throw new Error('Village name must have at least 2 letters');
@@ -83,6 +95,8 @@
       inspected: [],
       flags: { committeeMet: false, walkWatched: false, briefingSeen: false, tipsOff: false },
       peopleWithWater: 0,
+      difficulty: D().difficulties[difficultyId] ? difficultyId : 'normal',
+      milestonesShown: [],
     });
   }
 
@@ -100,6 +114,8 @@
   /* Fill in anything a save from an earlier build is missing. Never removes data. */
   function migrate(s) {
     const data = D();
+    if (!data.difficulties[s.difficulty]) s.difficulty = 'normal';
+    s.milestonesShown = s.milestonesShown || [];
     s.samples = s.samples || [];
     s.results = s.results || {};
     s.surveys = s.surveys || [];
@@ -170,7 +186,7 @@
   /* Regrowth: each depleted spot gets one charge back every regrowMs. `now` is a wall-clock
      time in ms; passing it in keeps this function pure and testable.                    */
   function regrow(s, now) {
-    const ms = D().regrowMs; let changed = false; const t = clone(s);
+    const ms = regrowMs(s); let changed = false; const t = clone(s);
     sceneOf(t).hotspots.filter((h) => h.kind === 'node').forEach((h) => {
       const n = t.nodes[h.id];
       if (n.charges < h.charges && n.regrowAt == null) { n.regrowAt = now + ms; changed = true; } // never stuck without a timer
@@ -191,31 +207,32 @@
     if (!node || node.charges <= 0) return { ok: false, state: s, reason: 'This spot is growing back. Try again in a few seconds.' };
     const t = clone(s);
     t.nodes[nodeId].charges -= 1;
-    if (t.nodes[nodeId].regrowAt == null) t.nodes[nodeId].regrowAt = (now == null ? Date.now() : now) + D().regrowMs;
+    if (t.nodes[nodeId].regrowAt == null) t.nodes[nodeId].regrowAt = (now == null ? Date.now() : now) + regrowMs(s);
     t.resources[h.res] += h.yield;
     t.gathered[h.res] += h.yield;
     return { ok: true, state: t, res: h.res, amount: h.yield };
   }
 
-  /* Three-hit gathering. `hits` is the node's current hit count (0–2), kept by the UI
-     and not saved: it is a moment of animation, not progress. Only the third hit calls
-     gather(), so resources are awarded exactly once per break.                     */
-  const HITS_TO_BREAK = 3;
+  /* Multi-hit gathering (2, 3 or 4 taps, by difficulty). `hits` is the node's current
+     hit count, kept by the UI and not saved: it is a moment of animation, not progress.
+     Only the last hit calls gather(), so resources are awarded exactly once per break. */
+  const HITS_TO_BREAK = 3; // Normal; use hitsToBreak(s) for the current village
   function strike(s, nodeId, hits, now) {
+    const need = hitsToBreak(s);
     const h = hotspot(s, nodeId);
     if (!h || h.kind !== 'node') return { ok: false, state: s, hits: 0, reason: 'Nothing to gather here.' };
     if (!s.nodes[nodeId] || s.nodes[nodeId].charges <= 0) return { ok: false, state: s, hits: 0, reason: 'This spot is growing back. Try again in a few seconds.' };
-    const n = Math.max(0, Math.min(HITS_TO_BREAK - 1, hits | 0)) + 1;
-    if (n < HITS_TO_BREAK) return { ok: true, state: s, hits: n, done: false, res: h.res };
+    const n = Math.max(0, Math.min(need - 1, hits | 0)) + 1;
+    if (n < need) return { ok: true, state: s, hits: n, done: false, res: h.res };
     const r = gather(s, nodeId, now);
-    return { ...r, hits: HITS_TO_BREAK, done: r.ok };
+    return { ...r, hits: need, done: r.ok };
   }
 
   /* The lab is a fixed project; the water point takes its cost from the chosen technology. */
   function buildDef(s, id) {
-    if (id !== 'waterPoint') return D().builds[id];
+    if (id !== 'waterPoint') { const b = D().builds[id]; return b && { ...b, cost: scaleCost(s, b.cost) }; }
     const tech = s.tech && D().technologies[s.tech];
-    return { ...D().waterPointBuild, name: tech ? tech.structureName : 'Water point', cost: tech ? tech.cost : { wood: 0, stone: 0 },
+    return { ...D().waterPointBuild, name: tech ? tech.structureName : 'Water point', cost: tech ? scaleCost(s, tech.cost) : { wood: 0, stone: 0 },
       requires: (x) => x.level >= 3 && !!x.tech, requiresText: 'Choose the water system with the committee first.' };
   }
   function canBuild(s, id) {
@@ -455,7 +472,7 @@
   function objectives(s) {
     const l = levelDef(s);
     const label = (id) => ((hotspot(s, id) || {}).label || id).toLowerCase();
-    const need = s.tech ? D().technologies[s.tech].cost : null;
+    const need = s.tech ? scaleCost(s, D().technologies[s.tech].cost) : null;
     return (l ? l.objectives : []).map((o) => ({ id: o.id, text: o.text(s, label, need), done: !!o.check(s, need) }));
   }
   function nextObjective(s) { return objectives(s).find((o) => !o.done) || null; }
@@ -477,6 +494,18 @@
     return { ok: true, state: t };
   }
 
+  /* ---- Milestones ------------------------------------------------------------------------
+     Returns the milestones the village has just reached (share of residents with reliable
+     water at or above each one's pct) that have not been shown yet, plus the new state.  */
+  function checkMilestones(s) {
+    if (!s.water || !s.population) return { state: s, reached: [] };
+    const pct = (metrics(s).peopleWithWater / s.population) * 100;
+    const reached = D().milestones.filter((m) => pct >= m.pct && s.milestonesShown.indexOf(m.pct) < 0);
+    if (!reached.length) return { state: s, reached };
+    const t = clone(s); reached.forEach((m) => t.milestonesShown.push(m.pct));
+    return { state: t, reached };
+  }
+
   /* ---- Persistence ---------------------------------------------------------------------------
      The WHOLE state is saved: nothing is cherry-picked, so nothing can be forgotten.
      A build that was mid-animation when the page closed loads as finished.            */
@@ -491,6 +520,7 @@
 
   WV.sim = {
     clone, clamp, hash, rng, shuffle, cleanName, validName, suggestName,
+    difficulty, scaleCost, gatherGoal, hitsToBreak, regrowMs, checkMilestones,
     generateVillage, siteFor, migrate, metrics, sceneOf, hotspot, visible,
     inspect, gather, regrow, msUntilRegrow, strike, HITS_TO_BREAK, buildDef, canBuild,
     planMeeting, techChoices, chooseTech, activationSteps, nextActivation, capacityPeople, activate, startBuild, finishBuild, setFlag,

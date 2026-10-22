@@ -58,7 +58,7 @@
   U.hudId = function (s) {
     const lvl = S().levelDef(s); const sc = D().scenarios[s.scenarioId];
     return `<span class="mark" aria-hidden="true">${icon('can')}</span>
-      <div class="id-text"><p class="kicker">Waterworks · ${esc(sc.name)}</p><h1>${esc(s.name)}</h1></div>
+      <div class="id-text"><p class="kicker">Waterworks · ${esc(sc.name)} · ${esc(S().difficulty(s).name)}</p><h1>${esc(s.name)}</h1></div>
       <span class="lvl"><span class="lvl-n">Level ${lvl.id}</span> ${esc(lvl.title)}</span>`;
   };
 
@@ -306,7 +306,7 @@
     const time = rp.hoursPerDay > 0 ? `<li><b>≈ ${fmt(rp.hoursPerDay)} h a day</b><span>of walking and waiting given back, about ${fmt(rp.hoursPerYear)} hours a year (round trip ${rp.roundTripBefore} → ${rp.roundTripAfter} min)</span></li>`
       : `<li><b>Shorter walks</b><span>for every family using the new water point</span></li>`;
     return `<div class="finale-art" style="background-image:url('${esc(IMG(sc.image))}')" aria-hidden="true"><span class="finale-burst">${burst}</span><span class="big-can">${icon('can')}</span></div>
-      <div class="dlg-head"><div><p class="kicker">${esc(rp.village)} · ${esc(rp.scenario)} · ${esc(rp.technology)}</p><h2 id="dlgTitle" class="finale-title">Water Changes Everything</h2><p class="finale-sub">Your village has built more than a water system.</p></div></div>
+      <div class="dlg-head"><div><p class="kicker">${esc(rp.village)} · ${esc(rp.scenario)} · ${esc(rp.technology)} · ${esc(S().difficulty(s).name)} mode</p><h2 id="dlgTitle" class="finale-title">Water Changes Everything</h2><p class="finale-sub">Your village has built more than a water system.</p></div></div>
       <div class="dlg-body">
         <ul class="summary finale-stats">
           <li><b>${fmt(rp.reliable)} of ${fmt(rp.population)}</b><span>residents with reliable, safe water</span></li>
@@ -319,6 +319,7 @@
         <p class="muted small">All figures are fictional simulation estimates from your village, not real project data. ${esc(D().disclaimer)}</p>
       </div>
       <div class="dlg-foot finale-foot"><a class="btn" href="${esc(D().learnUrl)}" target="_blank" rel="noopener">${icon('external')} Learn about real projects</a>
+        <a class="btn" href="${esc(D().donateUrl)}" target="_blank" rel="noopener">${icon('external')} Donate to charity: water</a>
         <button type="button" class="btn" data-act="new-village">Start a new village</button>
         <button type="button" class="btn primary" data-act="next-level">${icon('chev-right')} Explore your village</button></div>`;
   };
@@ -418,7 +419,7 @@
   U.techCards = function (s, msg) {
     const cards = S().techChoices(s);
     const card = (c) => {
-      const t = D().technologies[c.id]; const cost = t.cost;
+      const t = D().technologies[c.id]; const cost = t.cost ? S().scaleCost(s, t.cost) : null;
       const served = c.selectable ? Math.min(s.population, S().capacityPeople({ ...s, tech: c.id })) : null;
       return `<li class="tcard ${c.selectable ? 'pick' : 'alt'} ${s.tech === c.id ? 'chosen' : ''}">
         <div class="tc-top">${U.techIcon(c.id)}<div><b>${esc(c.name)}</b><span class="chip ${c.selectable ? 'ok' : 'neutral'}">${icon(c.selectable ? 'check' : 'dot')}${c.selectable ? 'Recommended' : esc({ part: 'Part of the plan', possible: 'Possible', complement: 'Helps alongside', later: 'Later' }[c.status] || 'Possible')}</span></div></div>
@@ -694,7 +695,8 @@
   U.menu = function (s, a, prefs) {
     return `<div class="dlg-head"><div><p class="kicker">Menu</p><h2 id="dlgTitle">${esc(s ? s.name : 'Waterworks')}</h2></div>${closeBtn()}</div>
       <div class="dlg-body">
-        <fieldset class="set"><legend>Music</legend>
+        <fieldset class="set"><legend>Sound</legend>
+          <label class="check"><input type="checkbox" data-act="set-sfx" ${WV.sfx && WV.sfx.isOn() ? 'checked' : ''}> Play sound effects</label>
           ${a.available ? `<label class="check"><input type="checkbox" data-act="set-mute" ${a.muted ? '' : 'checked'}> Play background music</label>
           <label class="range">Volume <input type="range" min="0" max="100" step="1" value="${Math.round(a.volume * 100)}" data-act="set-volume" aria-label="Music volume"><output id="volOut">${Math.round(a.volume * 100)}%</output></label>`
             : '<p class="muted">Music file not found. The game works without it.</p>'}
@@ -703,11 +705,12 @@
           <label class="check"><input type="checkbox" data-act="set-motion" ${prefs.reducedMotion ? 'checked' : ''}> Reduce motion</label>
           ${s ? `<label class="check"><input type="checkbox" data-act="set-tips" ${s.flags.tipsOff ? '' : 'checked'}> Show tips</label>` : ''}
         </fieldset>
-        ${s ? `<fieldset class="set"><legend>Village</legend><p class="muted">Progress saves automatically on this device.</p>
+        ${s ? `<fieldset class="set"><legend>Village</legend><p class="muted">Difficulty: <b>${esc(S().difficulty(s).name)}</b> (${S().hitsToBreak(s)} taps to gather, build costs ×${S().difficulty(s).costMult}). Choose a new difficulty when you start a new village.</p><p class="muted">Progress saves automatically on this device.</p>
           <div class="row"><button type="button" class="btn" data-act="new-village">New village</button><button type="button" class="btn danger" data-act="reset-game">Reset game</button></div></fieldset>` : ''}
         <fieldset class="set about"><legend>About</legend>
           <p>${esc(D().disclaimer)}</p><p class="muted">${esc(D().gameplayNote)}</p>
           <p><a href="${esc(D().learnUrl)}" target="_blank" rel="noopener">Learn about real charity: water projects ${icon('external')}</a></p>
+          <p><a href="${esc(D().donateUrl)}" target="_blank" rel="noopener">Donate to charity: water ${icon('external')}</a></p>
           <p class="muted">Also available: <a href="municipal.html">the original municipal Waterworks prototype</a>.</p></fieldset>
       </div>`;
   };

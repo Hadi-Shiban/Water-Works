@@ -78,7 +78,7 @@ async function playCampaign(scenario, vp) {
   await evaluate('localStorage.clear(); true'); await go(`${BASE}/index.html?scenario=${scenario}`);
   check(await evaluate('!document.getElementById("start").hidden && document.getElementById("continueBtn").hidden'), 'start screen shows, no Continue without a save');
   await sleep(600); await shot(`${scenario}-0-start-${vp[0]}`);
-  check(await evaluate('document.fonts.check("700 40px Fredoka") && getComputedStyle(document.querySelector("#startTitle")).fontFamily.includes("Fredoka")'), 'start title uses Fredoka');
+  check(await evaluate('document.fonts.check("700 40px Montserrat") && getComputedStyle(document.querySelector("#startTitle")).fontFamily.includes("Montserrat")'), 'start title uses the brand font (Montserrat)');
   await click('[data-act="start-game"]');
   await evaluate('document.getElementById("villageName").value = "Smoke Ridge"; true');
   await click('#nameForm button[type="submit"]'); await sleep(700);
